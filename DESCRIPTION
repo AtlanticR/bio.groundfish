@@ -1,0 +1,12 @@
+Package: groundfish
+Title: Core utilities to operate with groundfish data bases within Ecomod and associated projects. 
+Version: 0.1
+Authors@R: c( person("Jae", "Choi", email="Jae.Choi@dfo-mpo.gc.ca", role=c("aut", "cre")) ) 
+Description: This project handles survey data from Maritime Region groundfish data bases. 
+  It interoperates with other ecomod projects.
+Depends: R (>= 3.0.0)
+License: MIT
+LazyData: true
+URL: https://github.com/jae0/groundfish/
+
+
