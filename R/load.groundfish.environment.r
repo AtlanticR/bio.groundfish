@@ -8,6 +8,7 @@ load.groundfish.environment = function() {
   "netmensuration", "temperature", "habitat", "bathymetry", "bio", "groundfish", "polygons", "coastline" ))#,"BIOsurvey" ) )
   R.gs = file.path( project.datadirectory("groundfish"), "R" )
   setwd( R.gs )
+  assign("R.gs", R.gs,  envir=parent.frame() ) # export to calling namespace .. should not be needed but just in case
   return( list( init.libs, init.ecomodLibs ) )
 }
 
