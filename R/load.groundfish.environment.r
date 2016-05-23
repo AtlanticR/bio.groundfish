@@ -8,6 +8,6 @@ load.groundfish.environment = function() {
   "netmensuration", "temperature", "habitat", "bathymetry", "bio", "groundfish", "polygons", "coastline" ))#,"BIOsurvey" ) )
   R.gs = file.path( project.datadirectory("groundfish"), "R" )
   setwd( R.gs )
-  return( list( init.libs, init.ecomodLibs )
+  return( list( init.libs, init.ecomodLibs ) )
 }
 
