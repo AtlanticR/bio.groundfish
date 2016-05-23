@@ -1,6 +1,6 @@
-# ecomodUtils
+# groundfish
 
-Utilities to help develop and/or use ecomod tools.
+Utilities to help operate with groundfish databases for Maritimes region, Canada and interoperate with ecomod tools.
 
 ```
 # to enable inter-operability with github
@@ -16,11 +16,11 @@ require( ecomodUtils ) # this should ideally be placed into your .Rprofile
 RLibrary( "mgcv", "sp", "nlme" ) 
 
 # to load other ecomod-related packages from github: 
-ecomodLibrary ( "ecomodUtils", "snowcrab" )   
+ecomodLibrary ( "ecomodUtils", "groundfish" )   
 
 # loadfunctions still operates properly for alternate locations (here the orgininal ecomod was moved to ecomod0) 
-loadfunctions("snowcrab", alternate.directory="~/ecomod0")  # "/home/jae/ecomod0/snowcrab/src/_Rfunctions/"
-loadfunctions("snowcrab")  # "/home/jae/ecomod/snowcrab/R"
+loadfunctions("groundfish", alternate.directory="~/ecomod0")  # "/home/jae/ecomod0/groundfish/src/_Rfunctions/"
+loadfunctions("groundfish")  # "/home/jae/ecomod/groundfish/R"
 
 
 # list of currently available ecomod packages on github:
