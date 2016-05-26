@@ -8,7 +8,7 @@ Depends: R (>= 3.0.0)
 Imports: 
   devtools, 
   ecomodUtils,
-  utilities,
+  utility,
   lubridate
 Suggests:
   mgcv,
