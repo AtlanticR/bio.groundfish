@@ -8,7 +8,7 @@ load.groundfish.environment = function( libs=NULL, p=NULL ) {
     "rgdal", "raster" , "INLA", "numDeriv", "lubridate", "geosphere" )
 
   # helper functions
-  p$libs = unique( c( p$libs, ecomodLibrary( "plottingmethods", "spacetime", "utility", "parallel", "taxonomy",
+  p$libs = unique( c( p$libs, ecomodLibrary( "plottingmethods", "spacetime", "ecomod_utilities", "parallel", "taxonomy",
     "netmensuration", "temperature", "habitat", "bathymetry",
     "bio", "groundfish", "polygons", "coastline" ) ) ) #,"BIOsurvey" ) )
 
