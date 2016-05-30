@@ -1,24 +1,24 @@
 
-  nss.db.retired = function(  DS="", nss.taxa="all", nss.base=2, nss.type="mass", nss.distances=1, nss.stimes=30, clusters="localhost", init.files=NULL, plottimes=NULL, regions=NULL, nss.bins=NULL, cltype="SOCK" ) {
-  
+  nss.db.retired = function(  DS="", nss.taxa="all", nss.base=2, nss.type="mass", nss.distances=1, nss.stimes=30, clusters="localhost", libs=NULL, plottimes=NULL, regions=NULL, nss.bins=NULL, cltype="SOCK" ) {
+
     if (length( clusters) > 1 ) {
       do.parallel = T
     } else {
-      do.parallel = F 
+      do.parallel = F
     }
 
     loc = file.path( project.datadirectory("groundfish"), "data" )
     dir.create( path=loc, recursive=T, showWarnings=F )
-    
+
 
     if (DS %in% c("nss.det", "nss.det.redo") ) {
       # make the base normalised size spectral statistics summaries
-      fn = file.path( project.datadirectory("groundfish"), "R", "nss.rdata") 
+      fn = file.path( project.datadirectory("groundfish"), "R", "nss.rdata")
       if ( DS=="nss.det" ) {
         load( fn )
         return ( nss )
       }
-      
+
       gsstratum = groundfish.db( "gsstratum" )
       gsstratum = gsstratum[, c("strat","area")]
       gsstratum$area = as.numeric( gsstratum$area )
@@ -30,15 +30,15 @@
 
       nid = nrow(set)
       nss = NULL
-      
+
       if (!do.parallel) {
-        nss = nss.core( set=set, nss.base=nss.base, nss.distances=nss.distances, nss.stimes=nss.stimes, nss.taxa=nss.taxa, nss.type=nss.type, nss.bins=nss.bins, do.parallel=F,  init.files=init.files )
+        nss = nss.core( set=set, nss.base=nss.base, nss.distances=nss.distances, nss.stimes=nss.stimes, nss.taxa=nss.taxa, nss.type=nss.type, nss.bins=nss.bins, do.parallel=F,  libs=libs )
       } else if (do.parallel) {
         cl = makeCluster( spec=clusters, type=cltype)
-        ssplt = lapply( clusterSplit(cl, 1:nid), function(i) i )      
-        nss.pp = clusterApplyLB( cl, ssplt, 
-            fun=nss.core, set=set, nss.base=nss.base, nss.distances=nss.distances, 
-            nss.stimes=nss.stimes, nss.taxa=nss.taxa, nss.type=nss.type, nss.bins=nss.bins, do.parallel=T, init.files=init.files )
+        ssplt = lapply( clusterSplit(cl, 1:nid), function(i) i )
+        nss.pp = clusterApplyLB( cl, ssplt,
+            fun=nss.core, set=set, nss.base=nss.base, nss.distances=nss.distances,
+            nss.stimes=nss.stimes, nss.taxa=nss.taxa, nss.type=nss.type, nss.bins=nss.bins, do.parallel=T, libs=libs )
         stopCluster(cl)
         for (m in 1:length(nss.pp)) nss = rbind(nss , nss.pp[[m]])
       }
@@ -60,14 +60,14 @@
 
     if (DS %in% c("nss", "nss.redo") ) {
       # make the base normalised size spectral statistics summaries
-      fn = file.path( project.datadirectory("groundfish"), "R", "set_nss.rdata") 
+      fn = file.path( project.datadirectory("groundfish"), "R", "set_nss.rdata")
       if ( DS=="nss" ) {
         load( fn )
         return ( set )
       }
-       
-      set = groundfish.db( "set.base" )[, c("id", "yr")] 
-      
+
+      set = groundfish.db( "set.base" )[, c("id", "yr")]
+
       # update "set"
       for ( distance in c(2,50)) {
       for ( stime in c(10,50)) {
@@ -91,16 +91,16 @@
 
       }}
       set$yr = NULL
-      save(set , file=fn, compress=T ) 
+      save(set , file=fn, compress=T )
       return ( "Done" )
     }
 
 
     if (DS %in% c("nss.by.set", "nss.by.set.redo") ) {
-      
+
       # make the base normalised size spectral statistics summaries
       basefilename = file.path( project.datadirectory("groundfish"), "R", "sizespectrum" )
-      
+
       if (DS == "nss.by.set" ) {
         fn = paste( basefilename, nss.taxa, nss.type, nss.base, sep="." )
         load( fn )
@@ -122,12 +122,12 @@
 
         for (vname in nss.type) {
 
-          XX.log = log( XX[,vname], base=nss.base )  
+          XX.log = log( XX[,vname], base=nss.base )
           XX$sizeclass = cut( XX.log, breaks=nss.bins$lb, labels=F, include.lowest=F, right=T )
 
           XX$id=as.factor(XX$id)
           XX$sizeclass=as.factor(XX$sizeclass)
- 
+
           jjj = which( is.finite(XX$sizeclass) )
           XX = XX[jjj,]
           # closed on the right: (x,x]
@@ -137,10 +137,10 @@
 
           ss = NULL
           ss = xtab.2way( xval=XX$cf*XX[,vname], factors=XX[,c("id", "sizeclass")] )
-          
+
           ### ss contains number per km2 broken down by age class and weighted for sa, etc
           save( ss, file=fn, compress=T)
-          
+
           rm (XX, ss); gc()
         }
       }
@@ -166,8 +166,8 @@
       final = NULL
 
       for (tx in nss.taxa) {
-        ss = nss.db( "nss.by.set", nss.taxa=tx, nss.type=nss.type, nss.base=nss.base ) 
-       
+        ss = nss.db( "nss.by.set", nss.taxa=tx, nss.type=nss.type, nss.base=nss.base )
+
         ss0 = as.matrix(ss)
         offset = min(ss0[which(ss0>0)], na.rm=T) / 100
         rm (ss0); gc()
