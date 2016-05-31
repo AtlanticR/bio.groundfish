@@ -45,7 +45,7 @@ params = gmt.parameters( params ) # default settings
 
   Z = bathymetry.db( p=p, DS="baseline" )  # SS to a depth of 500 m  the default used for all planar SS grids
  Z = Z[which(Z$z>30),]
-  a = read.table('/home/ecomod_data/ecomod_polygons/data/Science/scotia.fundy.dat',header=F)
+  a = read.table('/home/bio.data/bio.polygons/data/Science/scotia.fundy.dat',header=F)
   names(a) = c('lon','lat')
   a = lonlat2planar(a,proj.type='utm20')
   ii = which(point.in.polygon(Z$plon,Z$plat,a$plon,a$plat) !=0)

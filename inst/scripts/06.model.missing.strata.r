@@ -2,7 +2,7 @@
 
 p = groundfish::load.groundfish.environment()
 
-#this header stuff is if you are using ecomod, this will be handled by most of your sql queries
+#this header stuff is if you are using bio, this will be handled by most of your sql queries
 #be sure to have sets with zero info for the species of interest
 
 #NEED TO DO THIS ON THE SET LEVEL AND PREDICT ON THE STRATA LEVEL, IMPROVED ESTIMATES NOT IMPLMENTED HERE YET

@@ -1,6 +1,6 @@
 # groundfish
 
-Utilities to help operate with groundfish databases for Maritimes region, Canada and interoperate with ecomod tools.
+Utilities to help operate with groundfish databases for Maritimes region, Canada and interoperate with bio tools.
 
 Installation:
 
@@ -10,6 +10,6 @@ require( "devtools")
 install_github( "jae0/groundfish" )
 ```
 
-Setup environment: https://github.com/jae0/ecomod_base
+Setup environment: https://github.com/jae0/bio.base
 
 

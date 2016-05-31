@@ -1,5 +1,5 @@
 
-# set up libs and ecomod functions
+# set up libs and bio functions
 p = groundfish::load.groundfish.environment()
 
 # define location of local data files

@@ -59,7 +59,7 @@ if (get.isobath) {  # tighter isobath-related outline of shelf at 1000m
     pt5 = cbind(-60, 48)
 
     d = rbind(pt1, d, pt2, pt3, pt4, pt5, pt1)
-    write.table(d, file.path( project.datadirectory("ecomod_polygons"), paste("isobath", i, "m.dat", sep="") ), col.names =F, row.names=F, quote=F)
+    write.table(d, file.path( project.datadirectory("bio.polygons"), paste("isobath", i, "m.dat", sep="") ), col.names =F, row.names=F, quote=F)
 }
 
 
