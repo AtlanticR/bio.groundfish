@@ -1,4 +1,4 @@
-figures.netmensuration = function( p, DS="", outdir = file.path( project.datadirectory("groundfish"), "analysis" ) ) {
+figures.netmensuration = function( p, DS="", outdir = file.path( project.datadirectory("bio.groundfish"), "analysis" ) ) {
 
   if (! file.exists( outdir ) ) dir.create( outdir, recursive =TRUE )
 

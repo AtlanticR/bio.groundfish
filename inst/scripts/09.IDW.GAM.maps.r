@@ -1,7 +1,7 @@
 
 
-p = groundfish::load.groundfish.environment()
-p = snowcrab::initialize.local.environment(p=p)
+p = bio.groundfish::load.groundfish.environment()
+p = bio.snowcrab::initialize.local.environment(p=p)
 
 # ----------------------------
 # 1 - define plot parameters
@@ -44,8 +44,10 @@ params = gmt.parameters( params ) # default settings
 
 
   Z = bathymetry.db( p=p, DS="baseline" )  # SS to a depth of 500 m  the default used for all planar SS grids
- Z = Z[which(Z$z>30),]
-  a = read.table('/home/bio.data/bio.polygons/data/Science/scotia.fundy.dat',header=F)
+  Z = Z[which(Z$z>30),]
+
+  fn = file.path( bio.datadirectory("bio.polygons"), "data", "Science", "scotia.fundy.dat" )
+  a = read.table( fn, header=F)
   names(a) = c('lon','lat')
   a = lonlat2planar(a,proj.type='utm20')
   ii = which(point.in.polygon(Z$plon,Z$plat,a$plon,a$plat) !=0)

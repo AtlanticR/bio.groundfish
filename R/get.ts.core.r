@@ -1,7 +1,7 @@
 
 get.ts.core = function(id=NULL, set, do.parallel=T, regions, plottimes, variables, custom, libs=NULL ) {
 
-  groundfish::load.groundfish.environment()
+  bio.groundfish::load.groundfish.environment()
 
   # the first index is a list that is passed from the calling prog: in this case "ssplt" (if parallel)
   if (do.parallel) id = as.numeric(id)

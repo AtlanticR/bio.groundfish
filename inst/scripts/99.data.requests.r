@@ -1,7 +1,7 @@
 
-  p = groundfish::load.groundfish.environment()
+  p = bio.bio.groundfish::load.bio.groundfish.environment()
 
-  loc = file.path( project.datadirectory("groundfish"), "data", "2006")
+  loc = file.path( project.datadirectory("bio.groundfish"), "data", "2006")
   require(chron)
 
     load( file.path(loc,"gscat.rdata") )
@@ -27,5 +27,5 @@
     sets.requested = which(set$settype==1 )
     set=set[sets.requested,vars]
 
-  write.table(set, "groundfish.data.laurel.extraction.cvs", sep=";")
+  write.table(set, "bio.groundfish.data.laurel.extraction.cvs", sep=";")
 

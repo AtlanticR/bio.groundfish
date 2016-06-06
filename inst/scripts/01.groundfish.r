@@ -5,7 +5,7 @@
 # ------------------  Common initialisation for groundfish
 # ------------------
 
-p = groundfish::load.groundfish.environment()
+p = bio.groundfish::load.groundfish.environment()
 
 # not too many as it has high memory requirements
 # clusters=c("tethys", "tethys", "io", "io", "io" )
@@ -90,10 +90,9 @@ p = groundfish::load.groundfish.environment()
   groundfish.db( "set.complete.redo", p=p )
 
 
-  # -------------------------------------------------------------------------------------
-# Run BIO.DB to update the multi-survey databases
 # -------------------------------------------------------------------------------------
-  loadfunctions ( "bio", functionname="bio.r" )
+# Run bio.habitat to update the multi-survey databases
+# -------------------------------------------------------------------------------------
 
 
 # create a lookuptable for data transformations

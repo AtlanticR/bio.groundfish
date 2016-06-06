@@ -1,40 +1,41 @@
 
-  groundfish.db = function(  DS="complete", p=NULL, taxa="all", datayrs=NULL  ) {
-    loc = file.path( project.datadirectory("groundfish"), "data" )
+  bio.groundfish.db = function(  DS="complete", p=NULL, taxa="all", datayrs=NULL  ) {
+
+    loc = file.path( project.datadirectory("bio.groundfish"), "data" )
     DataDumpFromWindows = F
     if ( DataDumpFromWindows ) {
       loc = file.path("C:", "datadump")
     }
     dir.create( path=loc, recursive=T, showWarnings=F )
-    
-    if (DS %in% c("odbc.redo") ) {
-      
-      # ODBC data dump of groundfish tables
-      groundfish.db( DS="gscat.odbc.redo", datayrs=datayrs )
-      groundfish.db( DS="gsdet.odbc.redo", datayrs=datayrs )
-      groundfish.db( DS="gsinf.odbc.redo", datayrs=datayrs )
-      groundfish.db( DS="gshyd.profiles.odbc.redo", datayrs=datayrs )
 
-      groundfish.db( DS="gsmissions.odbc.redo" ) #  not working?
-      
+    if (DS %in% c("odbc.redo") ) {
+
+      # ODBC data dump of bio.groundfish tables
+      bio.groundfish.db( DS="gscat.odbc.redo", datayrs=datayrs )
+      bio.groundfish.db( DS="gsdet.odbc.redo", datayrs=datayrs )
+      bio.groundfish.db( DS="gsinf.odbc.redo", datayrs=datayrs )
+      bio.groundfish.db( DS="gshyd.profiles.odbc.redo", datayrs=datayrs )
+
+      bio.groundfish.db( DS="gsmissions.odbc.redo" ) #  not working?
+
       update.infrequently = F
       if (update.infrequently) {
         # the following do not need to be updated annually
-        groundfish.db( DS="gscoords.odbc.redo" )
-        groundfish.db( DS="spcodes.odbc.redo" )
-        groundfish.db( DS="gslist.odbc.redo" )
-        groundfish.db( DS="gsgear.odbc.redo" )
-        groundfish.db( DS="gsstratum.odbc.redo" )
+        bio.groundfish.db( DS="gscoords.odbc.redo" )
+        bio.groundfish.db( DS="spcodes.odbc.redo" )
+        bio.groundfish.db( DS="gslist.odbc.redo" )
+        bio.groundfish.db( DS="gsgear.odbc.redo" )
+        bio.groundfish.db( DS="gsstratum.odbc.redo" )
       }
-    
+
     }
 
  # ----------------------
 
     if (DS %in% c("spcodes", "spcodes.odbc", "spcodes.redo", "spcodes.odbc.redo", "gstaxa", "gstaxa.redo"  ) ) {
-      
+
       fnspc = file.path( loc, "spcodes.rdata" )
-         
+
       if ( DS %in% c( "spcodes", "spcodes.odbc", "gstaxa" ) ) {
         load( fnspc )
         return( spcodes )
@@ -42,9 +43,9 @@
 
       if ( DS %in% c( "spcodes.odbc.redo", "spcodes.redo", "gstaxa.redo" ) ) {
         require(RODBC)
-        connect=odbcConnect( oracle.groundfish.server, uid=oracle.personal.user,
+        connect=odbcConnect( oracle.bio.groundfish.server, uid=oracle.personal.user,
             pwd=oracle.personal.password, believeNRows=F)
-        spcodes =  sqlQuery(connect, "select * from groundfish.gsspecies", as.is=T) 
+        spcodes =  sqlQuery(connect, "select * from bio.groundfish.gsspecies", as.is=T)
         odbcClose(connect)
         names(spcodes) =  tolower( names(spcodes) )
         save(spcodes, file=fnspc, compress=T)
@@ -60,13 +61,13 @@
 
 
 		if (DS %in% c( "gscat.odbc", "gscat.odbc.redo" ) ) {
-      
-      fn.root =  file.path( project.datadirectory("groundfish"), "data", "trawl", "gscat" )
+
+      fn.root =  file.path( project.datadirectory("bio.groundfish"), "data", "trawl", "gscat" )
 			dir.create( fn.root, recursive = TRUE, showWarnings = FALSE  )
-       
+
 			out = NULL
 	    if ( is.null(DS) | DS=="gscat.odbc" ) {
-        fl = list.files( path=fn.root, pattern="*.rdata", full.names=T ) 
+        fl = list.files( path=fn.root, pattern="*.rdata", full.names=T )
  				for ( fny in fl ) {
 					load (fny)
 					out = rbind( out, gscat )
@@ -75,24 +76,24 @@
       }
 
       require(RODBC)
-      connect=odbcConnect( oracle.groundfish.server, uid=oracle.personal.user, pwd=oracle.personal.password, believeNRows=F)
+      connect=odbcConnect( oracle.bio.groundfish.server, uid=oracle.personal.user, pwd=oracle.personal.password, believeNRows=F)
 
 			for ( YR in datayrs ) {
 				fny = file.path( fn.root, paste( YR,"rdata", sep="."))
-        gscat = sqlQuery( connect,  paste( 
-               "select i.*, substr(mission,4,4) year " , 
-        "    from groundfish.gscat i " , 
+        gscat = sqlQuery( connect,  paste(
+               "select i.*, substr(mission,4,4) year " ,
+        "    from bio.groundfish.gscat i " ,
         "    where substr(MISSION,4,4)=", YR, ";"
         ) )
-     
+
         names(gscat) =  tolower( names(gscat) )
         print(fny)
         save(gscat, file=fny, compress=T)
 				gc()  # garbage collection
 				print(YR)
 			}
-   
-      odbcClose(connect)             
+
+      odbcClose(connect)
       return (fn.root)
 
 		}
@@ -101,25 +102,25 @@
     # --------------------
 
 
- 
+
     if (DS %in% c("gscat", "gscat.redo"  ) ) {
-       
+
       fn = file.path( loc,"gscat.rdata")
-      
+
       if ( DS=="gscat" ) {
         load( fn )
         print('Not tow length corrected')
         return (gscat)
       }
 
-      gscat = groundfish.db( DS="gscat.odbc" )
+      gscat = bio.groundfish.db( DS="gscat.odbc" )
       gscat$year = NULL
 
       # remove data where species codes are ambiguous, or missing or non-living items
-      xx = which( !is.finite( gscat$spec) ) 
-      if (length(xx)>0) gscat = gscat[ -xx, ] 
+      xx = which( !is.finite( gscat$spec) )
+      if (length(xx)>0) gscat = gscat[ -xx, ]
 
-      ii = taxonomy.filter.taxa( gscat$spec, taxafilter="living.only", outtype="groundfishcodes" )
+      ii = taxonomy.filter.taxa( gscat$spec, taxafilter="living.only", outtype="bio.groundfishcodes" )
       gscat = gscat[ ii , ]
 
       min.number.observations.required = 3
@@ -130,25 +131,25 @@
       gscat = gscat[ -ii , ]
       gscat$id = paste(gscat$mission, gscat$setno, sep=".")
       gscat$id2 = paste(gscat$mission, gscat$setno, gscat$spec, sep=".")
-  
+
 
       # filter out strange data
-			ii = which( gscat$totwgt >= 9999 )  # default code for NAs -- 
-      if (length(ii)>0) gscat$totwgt[ii] = NA 
-    
+			ii = which( gscat$totwgt >= 9999 )  # default code for NAs --
+      if (length(ii)>0) gscat$totwgt[ii] = NA
+
 			ii = which( gscat$totwgt >= 5000 )  # upper limit of realistic kg/set
       if (length(ii)>0) gscat$totwgt[ii] = 5000
-      
+
 			jj = which( gscat$totwgt == 0 )
 			if (length(jj)>0) gscat$totwgt[jj] = NA
 
-			kk = which( gscat$totno == 0 ) 
+			kk = which( gscat$totno == 0 )
       if (length(kk)>0) gscat$totno[kk] = NA
- 		
-      ll = which( is.na(gscat$totno) & is.na(gscat$totwgt) ) 
+
+      ll = which( is.na(gscat$totno) & is.na(gscat$totwgt) )
       if (length(ll) > 0) gscat$totno[ ll ] = 1
-        
-      # as species codes have been altered, look for duplicates and update totals	
+
+      # as species codes have been altered, look for duplicates and update totals
       d = which(duplicated(gscat$id2))
       s = NULL
       for (i in d) {
@@ -167,7 +168,7 @@
       }
 
       mw = meansize.crude(Sp=gscat$spec, Tn=gscat$totno, Tw=gscat$totwgt )
-      mw2 = meansize.direct() 
+      mw2 = meansize.direct()
       mw = merge(mw, mw2, by="spec", all=T, sort=T, suffixes=c(".crude", ".direct") )
       # directly determined mean size has greater reliability --- replace
       mm = which( is.finite(mw$meanweight.direct))
@@ -176,33 +177,33 @@
       mw = mw[which(is.finite(mw$meanweight)) ,]
 
 
-      ii = which( is.na(gscat$totno) & gscat$totwgt >  0 ) 
-      
+      ii = which( is.na(gscat$totno) & gscat$totwgt >  0 )
+
       print( "Estimating catches from mean weight information... slow ~ 5 minutes")
 
       if (length(ii)>0) {
         # replace each number estimate with a best guess based upon average body weight in the historical record
         uu = unique( gscat$spec[ii] )
         for (u in uu ) {
-          os =  which( mw$spec==u ) 
+          os =  which( mw$spec==u )
           if (length( os)==0 ) next()
           toreplace = intersect( ii, which( gscat$spec==u) )
           gscat$totno[toreplace] = gscat$totwgt[toreplace] / mw$meanweight[os]
         }
       }
 
-      jj = which( gscat$totno >  0 & is.na(gscat$totwgt) ) 
+      jj = which( gscat$totno >  0 & is.na(gscat$totwgt) )
       if (length(jj)>0) {
         # replace each number estimate with a best guess based upon average body weight in the historical record
         uu = unique( gscat$spec[jj] )
         for (u in uu ) {
-          os =  which( mw$spec==u ) 
+          os =  which( mw$spec==u )
           if (length( os)==0 ) next()
           toreplace = intersect( jj, which( gscat$spec==u) )
           gscat$totwgt[toreplace] = gscat$totno[toreplace] * mw$meanweight[os]
         }
       }
- 
+
       gscat = gscat[, c("id", "id2", "spec", "totwgt", "totno", "sampwgt" )] # kg, no/set
 
       save(gscat, file=fn, compress=T)
@@ -210,18 +211,18 @@
     }
 
    if (DS %in% c('gsdet.spec','gsdet.spec.redo')) {
-          
-             fn.root =  file.path( project.datadirectory("groundfish"), "data")
+
+             fn.root =  file.path( project.datadirectory("bio.groundfish"), "data")
              fi = 'gsdet.spec.rdata'
              dir.create( fn.root, recursive = TRUE, showWarnings = FALSE  )
-          
+
           if(DS=='gsdet.spec'){
                 load(file.path(fn.root,fi))
                 return(species.details)
              }
-          
-             de  = groundfish.db(DS='gsdet.odbc')
-             ins = groundfish.db(DS='gsinf.odbc')
+
+             de  = bio.groundfish.db(DS='gsdet.odbc')
+             ins = bio.groundfish.db(DS='gsinf.odbc')
              i1 = which(months(ins$sdate) %in% c('June','July','August'))
              i2 = which(months(ins$sdate) %in% c('February','March','April'))
              i3 = which(ins$strat %in% c(440:495))
@@ -246,12 +247,12 @@
 
 
 		if (DS %in% c( "gsdet.odbc", "gsdet.odbc.redo" ) ) {
-      fn.root =  file.path( project.datadirectory("groundfish"), "data", "trawl", "gsdet" )
+      fn.root =  file.path( project.datadirectory("bio.groundfish"), "data", "trawl", "gsdet" )
 			dir.create( fn.root, recursive = TRUE, showWarnings = FALSE  )
-       
+
 			out = NULL
 	    if ( DS=="gsdet.odbc" ) {
-        fl = list.files( path=fn.root, pattern="*.rdata", full.names=T  ) 
+        fl = list.files( path=fn.root, pattern="*.rdata", full.names=T  )
  				for ( fny in fl ) {
 					load (fny)
 					out = rbind( out, gsdet )
@@ -260,13 +261,13 @@
       }
 
       require(RODBC)
-      connect=odbcConnect( oracle.groundfish.server, uid=oracle.personal.user, pwd=oracle.personal.password, believeNRows=F)
+      connect=odbcConnect( oracle.bio.groundfish.server, uid=oracle.personal.user, pwd=oracle.personal.password, believeNRows=F)
 
 			for ( YR in datayrs ) {
 				fny = file.path( fn.root, paste( YR,"rdata", sep="."))
-        gsdet = sqlQuery( connect,  paste( 
-        "select i.*, substr(mission,4,4) year" , 
-        "    from groundfish.gsdet i " , 
+        gsdet = sqlQuery( connect,  paste(
+        "select i.*, substr(mission,4,4) year" ,
+        "    from bio.groundfish.gsdet i " ,
         "    where substr(mission,4,4)=", YR, ";"
         ) )
         names(gsdet) =  tolower( names(gsdet) )
@@ -277,45 +278,45 @@
 				print(YR)
 			}
       odbcClose(connect)
-              
+
       return (fn.root)
 
 		}
-        
+
     # ----------------------
 
     if (DS %in% c("gsdet", "gsdet.redo") ) {
-    
+
     # --------- codes ----------------
     # sex: 0=?, 1=male, 2=female,  3=?
-    # mat: 0=observed but undetermined, 1=imm, 2=ripening(1), 3=ripening(2), 4=ripe(mature), 
+    # mat: 0=observed but undetermined, 1=imm, 2=ripening(1), 3=ripening(2), 4=ripe(mature),
     #      5=spawning(running), 6=spent, 7=recovering, 8=resting
-    # settype: 1=stratified random, 2=regular survey, 3=unrepresentative(net damage), 
-    #      4=representative sp recorded(but only part of total catch), 5=comparative fishing experiment, 
+    # settype: 1=stratified random, 2=regular survey, 3=unrepresentative(net damage),
+    #      4=representative sp recorded(but only part of total catch), 5=comparative fishing experiment,
     #      6=tagging, 7=mesh/gear studies, 8=explorartory fishing, 9=hydrography
     # --------- codes ----------------
 
 
       fn = file.path( loc,"gsdet.rdata")
-      
+
       if ( DS=="gsdet" ) {
         load( fn )
         return (gsdet)
       }
 
-      gsdet = groundfish.db( DS="gsdet.odbc" )
+      gsdet = bio.groundfish.db( DS="gsdet.odbc" )
       gsdet$year = NULL
 
       oo = which(!is.finite(gsdet$spec) )
       if (length(oo)>0) gsdet = gsdet[-oo,]
-      
+
       # remove data where species codes are ambiguous, or missing or non-living items
-      gsdet = gsdet[ taxonomy.filter.taxa( gsdet$spec, taxafilter="living.only", outtype="groundfishcodes" ) , ]
+      gsdet = gsdet[ taxonomy.filter.taxa( gsdet$spec, taxafilter="living.only", outtype="bio.groundfishcodes" ) , ]
 
 
       gsdet$id = paste(gsdet$mission, gsdet$setno, sep=".")
       gsdet$id2 = paste(gsdet$mission, gsdet$setno, gsdet$spec, sep=".")
-      gsdet = gsdet[, c("id", "id2", "spec", "fshno", "fsex", "fmat", "flen", "fwt", "age") ]  
+      gsdet = gsdet[, c("id", "id2", "spec", "fshno", "fsex", "fmat", "flen", "fwt", "age") ]
       names(gsdet)[which(names(gsdet)=="fsex")] = "sex"
       names(gsdet)[which(names(gsdet)=="fmat")] = "mat"
       names(gsdet)[which(names(gsdet)=="flen")] = "len"  # cm
@@ -324,19 +325,19 @@
 
       return( fn )
     }
-  
-    
+
+
     # ----------------------
 
 
 		if (DS %in% c( "gsinf.odbc", "gsinf.odbc.redo" ) ) {
-      
-      fn.root =  file.path( project.datadirectory("groundfish"), "data", "trawl", "gsinf" )
+
+      fn.root =  file.path( project.datadirectory("bio.groundfish"), "data", "trawl", "gsinf" )
 			dir.create( fn.root, recursive = TRUE, showWarnings = FALSE  )
-       
+
 			out = NULL
 	    if ( is.null(DS) | DS=="gsinf.odbc" ) {
-        fl = list.files( path=fn.root, pattern="*.rdata", full.names=T  ) 
+        fl = list.files( path=fn.root, pattern="*.rdata", full.names=T  )
  				for ( fny in fl ) {
           load (fny)
           out = rbind( out, gsinf )
@@ -345,12 +346,12 @@
       }
 
       require(RODBC)
-      connect=odbcConnect( oracle.groundfish.server, uid=oracle.personal.user, pwd=oracle.personal.password, believeNRows=F)
+      connect=odbcConnect( oracle.bio.groundfish.server, uid=oracle.personal.user, pwd=oracle.personal.password, believeNRows=F)
 
 			for ( YR in datayrs ) {
 				fny = file.path( fn.root, paste( YR,"rdata", sep="."))
-        gsinf = sqlQuery( connect,  paste( 
-        "select * from groundfish.gsinf where EXTRACT(YEAR from SDATE) = ", YR, ";"
+        gsinf = sqlQuery( connect,  paste(
+        "select * from bio.groundfish.gsinf where EXTRACT(YEAR from SDATE) = ", YR, ";"
         ) )
         names(gsinf) =  tolower( names(gsinf) )
         save(gsinf, file=fny, compress=T)
@@ -358,53 +359,53 @@
 				gc()  # garbage collection
 				print(YR)
 			}
-	        
-      odbcClose(connect)	              
+
+      odbcClose(connect)
       return (fn.root)
 
 		}
-     
-    
+
+
 
   # ----------------------
 
 
     if (DS %in% c("gsinf", "gsinf.redo" ) ) {
       fn = file.path( loc,"gsinf.rdata")
-      
+
       if ( DS=="gsinf" ) {
         load( fn )
         return (gsinf)
       }
- 
-      gsinf = groundfish.db( DS="gsinf.odbc" )
+
+      gsinf = bio.groundfish.db( DS="gsinf.odbc" )
       names(gsinf)[which(names(gsinf)=="type")] = "settype"
-    
-      gsgear = groundfish.db( DS="gsgear" )
+
+      gsgear = bio.groundfish.db( DS="gsgear" )
       gsinf = merge (gsinf, gsgear, by="gear", all.x=TRUE, all.y=FALSE, sort= FALSE )
 
       # fix some time values that have lost the zeros due to numeric conversion
-      gsinf$time = as.character(gsinf$time)      
-      
+      gsinf$time = as.character(gsinf$time)
+
       tzone = "America/Halifax"  ## need to verify if this is correct
 
       # by default it should be the correct timezone ("localtime") , but just in case
-      tz( gsinf$sdate) = tzone  
-     
-      gsinf$edate = gsinf$etime 
-      tz( gsinf$edate) = tzone  
+      tz( gsinf$sdate) = tzone
 
-      # fix sdate - edate inconsistencies .. assuming sdate is correct 
+      gsinf$edate = gsinf$etime
+      tz( gsinf$edate) = tzone
+
+      # fix sdate - edate inconsistencies .. assuming sdate is correct
       gsinf$timediff.gsinf = gsinf$edate - gsinf$sdate
-      oo = which( abs( gsinf$timediff.gsinf)  > dhours( 4 ) ) 
+      oo = which( abs( gsinf$timediff.gsinf)  > dhours( 4 ) )
       if (length(oo)>0) {
         print( "Time stamps sdate and etime (renamed as edate) are severely off (more than 4 hrs):" )
         print( gsinf[oo,] )
         if (FALSE) {
           hist( as.numeric(  gsinf$timediff.gsinf[-oo]), breaks=200 )
-          abline (v=30*60, col="red")  # expected value of 30 min 
-          abline (v=90*60, col="red")  # after 90 min 
-          abline (v=150*60, col="red")  # after 150 min 
+          abline (v=30*60, col="red")  # expected value of 30 min
+          abline (v=90*60, col="red")  # after 90 min
+          abline (v=150*60, col="red")  # after 150 min
         }
       }
       uu = which( gsinf$timediff.gsinf < 0 ) # when tow end is before start
@@ -412,12 +413,12 @@
       gsinf$timediff.gsinf[uu] =NA
       print( "Time stamps sdate and etime (renamed as edate) are severely off: edate is before sdate:" )
       print( gsinf[uu,] )
-      
-      if (FALSE)  hist( as.numeric(  gsinf$timediff.gsinf), breaks=200 ) 
-    
+
+      if (FALSE)  hist( as.numeric(  gsinf$timediff.gsinf), breaks=200 )
+
       uu = which( gsinf$timediff.gsinf > dminutes(50) & gsinf$timediff.gsinf < dminutes(50+60) ) # assuming 50 min is a max tow length
       if (length(uu)>0) {
-        gsinf$edate[uu] = gsinf$edate[uu] - dhours(1) ### this is assuming sdate is correct ... which might not be the case 
+        gsinf$edate[uu] = gsinf$edate[uu] - dhours(1) ### this is assuming sdate is correct ... which might not be the case
         if (FALSE) {
           hist( as.numeric(  gsinf$timediff.gsinf[-oo]), breaks=200 )
         }
@@ -428,13 +429,13 @@
       gsinf$timediff.gsinf[uu] =NA
         if (FALSE) {
           hist( as.numeric(  gsinf$timediff.gsinf), breaks=200 )
-          abline (v=30*60, col="red")  # expected value of 30 min 
-          abline (v=90*60, col="red")  # after 90 min 
-          abline (v=150*60, col="red")  # after 150 min 
+          abline (v=30*60, col="red")  # expected value of 30 min
+          abline (v=90*60, col="red")  # after 90 min
+          abline (v=150*60, col="red")  # after 150 min
         }
-    
+
       gsinf$yr = lubridate::year( gsinf$sdate)
-    
+
       gsinf$mission = as.character( gsinf$mission )
       gsinf$strat = as.character(gsinf$strat)
       gsinf$strat[ which(gsinf$strat=="") ] = "NA"
@@ -452,26 +453,26 @@
 
       gsinf = convert.degmin2degdec(gsinf, vnames=c("lon", "lat") )
       gsinf = convert.degmin2degdec(gsinf, vnames=c("lon.end", "lat.end") )
-  
+
       gsinf$dist_km = gsinf$dist * 1.852  # nautical mile to km
-      gsinf$dist_pos = geosphere::distGeo( gsinf[, c("lon","lat")], gsinf[, c("lon.end", "lat.end")])/1000  
-         
-      ii = which( abs( gsinf$dist_km) > 10 ) # 10 km is safely too extreme 
+      gsinf$dist_pos = geosphere::distGeo( gsinf[, c("lon","lat")], gsinf[, c("lon.end", "lat.end")])/1000
+
+      ii = which( abs( gsinf$dist_km) > 10 ) # 10 km is safely too extreme
       if (length(ii)> 0) {
-        gsinf$dist_km[ii] =  gsinf$dist_pos[ii] 
+        gsinf$dist_km[ii] =  gsinf$dist_pos[ii]
       }
 
-      ii = which( abs( gsinf$dist_pos) > 10 ) # 10 km is safely too extreme 
+      ii = which( abs( gsinf$dist_pos) > 10 ) # 10 km is safely too extreme
       if (length(ii)> 0) {
         gsinf$dist_pos[ii] = gsinf$dist_km[ii]
         # assuming end positions are incorrect. This may not be a correct assumption!
         gsinf$lon.end[ii] = NA
         gsinf$lat.end[ii] = NA
       }
-             
-  
-    ## !! GPS position-based distances do not always match the distance recorded 
-    ## plot( dist_pos ~ dist_km, gsinf, ylim=c(0,60)) 
+
+
+    ## !! GPS position-based distances do not always match the distance recorded
+    ## plot( dist_pos ~ dist_km, gsinf, ylim=c(0,60))
 
       gsinf$cftow = 1.75/gsinf$dist  # not used
       ft2m = 0.3048
@@ -479,7 +480,7 @@
       nmi2mi = 1.1507794
       mi2ft = 5280
       gsinf$sakm2 = (41 * ft2m * m2km ) * ( gsinf$dist * nmi2mi * mi2ft * ft2m * m2km )  # surface area sampled in km^2
-				oo = which( !is.finite(gsinf$sakm2 )) 
+				oo = which( !is.finite(gsinf$sakm2 ))
 					gsinf$sakm2[oo] = median (gsinf$sakm2, na.rm=T)
 				pp = which( gsinf$sakm2 > 0.09 )
 					gsinf$sakm2[pp] = median (gsinf$sakm2, na.rm=T)
@@ -489,7 +490,7 @@
 			gsinf = gsinf[, c("id", "yr", "sdate", "edate", "time", "strat", "area", "speed", "dist_km", "dist_pos",
                         "cftow", "sakm2", "settype", "gear", "geardesc", "lon", "lat", "lon.end", "lat.end",
                         "surface_temperature","bottom_temperature","bottom_salinity", "bottom_depth")]
-      
+
       save(gsinf, file=fn, compress=T)
       return(fn)
     }
@@ -498,13 +499,13 @@
 
 
 		if (DS %in% c( "gshyd.profiles.odbc" , "gshyd.profiles.odbc.redo" ) ) {
-      
-      fn.root =  file.path( project.datadirectory("groundfish"), "data", "trawl", "gshyd" )
+
+      fn.root =  file.path( project.datadirectory("bio.groundfish"), "data", "trawl", "gshyd" )
 			dir.create( fn.root, recursive = TRUE, showWarnings = FALSE  )
-       
+
 			out = NULL
 	    if ( is.null(DS) | DS=="gshyd.profiles.odbc" ) {
-        fl = list.files( path=fn.root, pattern="*.rdata", full.names=T  ) 
+        fl = list.files( path=fn.root, pattern="*.rdata", full.names=T  )
  				for ( fny in fl ) {
 					load (fny)
 					out = rbind( out, gshyd )
@@ -513,13 +514,13 @@
       }
 
       require(RODBC)
-      connect=odbcConnect( oracle.groundfish.server, uid=oracle.personal.user, pwd=oracle.personal.password, believeNRows=F)
+      connect=odbcConnect( oracle.bio.groundfish.server, uid=oracle.personal.user, pwd=oracle.personal.password, believeNRows=F)
 
 			for ( YR in datayrs ) {
 				fny = file.path( fn.root, paste( YR,"rdata", sep="."))
-        gshyd = sqlQuery( connect,  paste( 
-        "select i.*, j.YEAR " , 
-        "    from groundfish.gshyd i, groundfish.gsmissions j " , 
+        gshyd = sqlQuery( connect,  paste(
+        "select i.*, j.YEAR " ,
+        "    from bio.groundfish.gshyd i, bio.groundfish.gsmissions j " ,
         "    where i.MISSION(+)=j.MISSION " ,
         "    and YEAR=", YR, ";"
         ) )
@@ -537,15 +538,15 @@
 				print(YR)
 			}
 			odbcClose(connect)
-              
+
       return ( fn.root )
 
 		}
-     
+
  # ----------------------
 
 
-   
+
     if (DS %in% c("gshyd.profiles", "gshyd.profiles.redo" ) ) {
       # full profiles
       fn = file.path( loc,"gshyd.profiles.rdata")
@@ -553,14 +554,14 @@
         load( fn )
         return (gshyd)
       }
-      
-      gshyd = groundfish.db( DS="gshyd.profiles.odbc" )
+
+      gshyd = bio.groundfish.db( DS="gshyd.profiles.odbc" )
       gshyd$id = paste(gshyd$mission, gshyd$setno, sep=".")
       gshyd = gshyd[, c("id", "sdepth", "temp", "sal", "oxyml" )]
       save(gshyd, file=fn, compress=T)
       return( fn )
     }
-     
+
 
  # ----------------------
 
@@ -573,9 +574,9 @@
         load( fn )
         return (gshyd)
       }
-      gshyd = groundfish.db( DS="gshyd.profiles" )
+      gshyd = bio.groundfish.db( DS="gshyd.profiles" )
       nr = nrow( gshyd)
-      
+
       # candidate depth estimates from profiles
       deepest = NULL
       t = which( is.finite(gshyd$sdepth) )
@@ -589,10 +590,10 @@
       oo = which( duplicated( gshyd$id ) )
       if (length(oo) > 0) stop( "Duplicated data in GSHYD" )
 
-      gsinf = groundfish.db( "gsinf" ) 
-      gsinf = gsinf[, c("id", "bottom_temperature", "bottom_salinity", "bottom_depth" ) ] 
+      gsinf = bio.groundfish.db( "gsinf" )
+      gsinf = gsinf[, c("id", "bottom_temperature", "bottom_salinity", "bottom_depth" ) ]
       gshyd = merge( gshyd, gsinf, by="id", all.x=T, all.y=F, sort=F )
-     
+
       ## bottom_depth is a profile-independent estimate .. asuming it has higher data quality
       ii = which(!is.finite( gshyd$bottom_depth ))
       if (length(ii)>0) gshyd$bottom_depth[ii] = gshyd$sdepth[ii]
@@ -611,7 +612,7 @@
       gshyd$bottom_temperature = NULL
       gshyd$bottom_salinity = NULL
 
-      
+
       save(gshyd, file=fn, compress=T)
       return( fn )
     }
@@ -627,9 +628,9 @@
         load( fn )
         return (gshyd)
       }
-      gsinf = groundfish.db( "gsinf" ) 
+      gsinf = bio.groundfish.db( "gsinf" )
       # gsinf$date = as.chron( gsinf$sdate )
-      gsinf$timestamp = gsinf$sdate 
+      gsinf$timestamp = gsinf$sdate
       gsinf$yr = lubridate::year( gsinf$timestamp)
  #     gsinf$dayno = convert.datecodes( gsinf$date, "julian")
  #     gsinf$weekno = ceiling ( gsinf$dayno / 365 * 52 )
@@ -637,7 +638,7 @@
       gsinf$longitude = gsinf$lon
       gsinf$latitude = gsinf$lat
       gsinf = gsinf[ , c( "id", "lon", "lat", "yr", "timestamp" ) ]
-      gshyd = groundfish.db( "gshyd.profiles" )
+      gshyd = bio.groundfish.db( "gshyd.profiles" )
       gshyd = merge( gshyd, gsinf, by="id", all.x=T, all.y=F, sort=F )
       gshyd$sal[gshyd$sal<5]=NA
       save(gshyd, file=fn, compress=T)
@@ -655,9 +656,9 @@
         return (gsstratum)
       }
       require(RODBC)
-      connect=odbcConnect( oracle.groundfish.server, uid=oracle.personal.user, 
+      connect=odbcConnect( oracle.bio.groundfish.server, uid=oracle.personal.user,
           pwd=oracle.personal.password, believeNRows=F)
-      gsstratum =  sqlQuery(connect, "select * from groundfish.gsstratum", as.is=T) 
+      gsstratum =  sqlQuery(connect, "select * from bio.groundfish.gsstratum", as.is=T)
       odbcClose(connect)
       names(gsstratum) =  tolower( names(gsstratum) )
       save(gsstratum, file=fn, compress=T)
@@ -676,9 +677,9 @@
         return (gsgear)
       }
       require(RODBC)
-      connect=odbcConnect( oracle.groundfish.server, uid=oracle.personal.user, 
+      connect=odbcConnect( oracle.bio.groundfish.server, uid=oracle.personal.user,
           pwd=oracle.personal.password, believeNRows=F)
-      gsgear =  sqlQuery(connect, "select * from groundfish.gsgear", as.is=T) 
+      gsgear =  sqlQuery(connect, "select * from bio.groundfish.gsgear", as.is=T)
       odbcClose(connect)
       names(gsgear) =  tolower( names(gsgear) )
       save(gsgear, file=fn, compress=T)
@@ -699,19 +700,19 @@
         return (gscoords)
       }
       require(RODBC)
-      connect=odbcConnect( oracle.groundfish.server, uid=oracle.personal.user, 
+      connect=odbcConnect( oracle.bio.groundfish.server, uid=oracle.personal.user,
           pwd=oracle.personal.password, believeNRows=F)
-      coords = sqlQuery(connect, "select * from mflib.mwacon_mapobjects", as.is=T) 
+      coords = sqlQuery(connect, "select * from mflib.mwacon_mapobjects", as.is=T)
       odbcClose(connect)
       names(coords) =  tolower( names(coords) )
       save(coords, file=fn, compress=T)
       print(fn)
       return( fn )
     }
- 
+
  # ----------------------
 
- 
+
    if (DS %in% c("gslist", "gslist.odbc.redo") ) {
       fn = file.path( loc,"gslist.rdata")
       if ( DS=="gslist" ) {
@@ -719,9 +720,9 @@
         return (gslist)
       }
       require(RODBC)
-      connect=odbcConnect( oracle.groundfish.server, uid=oracle.personal.user, 
+      connect=odbcConnect( oracle.bio.groundfish.server, uid=oracle.personal.user,
           pwd=oracle.personal.password, believeNRows=F)
-      gslist = sqlQuery(connect, "select * from groundfish.gs_survey_list")
+      gslist = sqlQuery(connect, "select * from bio.groundfish.gs_survey_list")
       odbcClose(connect)
       names(gslist) =  tolower( names(gslist) )
       save(gslist, file=fn, compress=T)
@@ -733,16 +734,16 @@
 
     if (DS %in% c("gsmissions", "gsmissions.odbc.redo") ) {
       fnmiss = file.path( loc,"gsmissions.rdata")
-      
+
       if ( DS=="gsmissions" ) {
         load( fnmiss )
         return (gsmissions)
       }
-      
+
       require(RODBC)
-      connect=odbcConnect( oracle.groundfish.server, uid=oracle.personal.user, 
+      connect=odbcConnect( oracle.bio.groundfish.server, uid=oracle.personal.user,
           pwd=oracle.personal.password, believeNRows=F)
-        gsmissions = sqlQuery(connect, "select MISSION, VESEL, CRUNO from groundfish.gsmissions")
+        gsmissions = sqlQuery(connect, "select MISSION, VESEL, CRUNO from bio.groundfish.gsmissions")
         odbcClose(connect)
         names(gsmissions) =  tolower( names(gsmissions) )
         save(gsmissions, file=fnmiss, compress=T)
@@ -753,18 +754,18 @@
  # ----------------------
 
     if (DS %in% c("cat.base", "cat.base.redo") ) {
-      fn = file.path( project.datadirectory("groundfish"), "data", "cat.base.rdata")
+      fn = file.path( project.datadirectory("bio.groundfish"), "data", "cat.base.rdata")
       if ( DS=="cat.base" ) {
         load( fn )
         return (cat)
       }
-      
-      gscat = groundfish.db( "gscat" ) #kg/set, no/set 
-      set = groundfish.db( "set.base" ) 
-      cat = merge(x=gscat, y=set, by=c("id"), all.x=T, all.y=F, sort=F) 
-      rm (gscat, set)     
-   
-      gstaxa = taxonomy.db( "life.history" ) 
+
+      gscat = bio.groundfish.db( "gscat" ) #kg/set, no/set
+      set = bio.groundfish.db( "set.base" )
+      cat = merge(x=gscat, y=set, by=c("id"), all.x=T, all.y=F, sort=F)
+      rm (gscat, set)
+
+      gstaxa = taxonomy.db( "life.history" )
       gstaxa = gstaxa[,c("spec", "name.common", "name.scientific", "itis.tsn" )]
       oo = which( duplicated( gstaxa$spec ) )
       if (length( oo) > 0 ) {
@@ -772,70 +773,70 @@
         print( "NOTE -- Duplicated species codes in taxonomy.db(life.history) ... need to fix taxonomy.db, dropping for now " )
       }
 
-      cat = merge(x=cat, y=gstaxa, by=c("spec"), all.x=T, all.y=F, sort=F) 
+      cat = merge(x=cat, y=gstaxa, by=c("spec"), all.x=T, all.y=F, sort=F)
       save(cat, file=fn, compress=T )
       return ( fn )
     }
-    
+
      # ----------------------
 
     if (DS %in% c("det.base", "det.base.redo") ) {
-      fn = file.path( project.datadirectory("groundfish"), "data", "det.base.rdata")
+      fn = file.path( project.datadirectory("bio.groundfish"), "data", "det.base.rdata")
       if ( DS=="det.base" ) {
         load( fn )
         return (det)
       }
 
-      det = groundfish.db( "gsdet" )
-      
+      det = bio.groundfish.db( "gsdet" )
+
       det = det[, c("id", "id2", "spec", "fshno", "sex", "mat", "len", "mass", "age") ]
-      det$mass = det$mass / 1000 # convert from g to kg 
+      det$mass = det$mass / 1000 # convert from g to kg
 
       save( det, file=fn, compress=T )
       return( fn )
     }
- 
+
 
  # ----------------------
 
     if (DS %in% c("cat", "cat.redo") ) {
-      fn = file.path( project.datadirectory("groundfish"), "data", "cat.rdata")
+      fn = file.path( project.datadirectory("bio.groundfish"), "data", "cat.rdata")
       if ( DS=="cat" ) {
         load( fn )
         return (cat)
       }
-     
-      cat = groundfish.db( DS="cat.base" )  # kg/set, no/set
-     
-      # combine correction factors or ignore trapability corrections .. 
+
+      cat = bio.groundfish.db( DS="cat.base" )  # kg/set, no/set
+
+      # combine correction factors or ignore trapability corrections ..
       # plaice correction ignored as they are size-dependent
       cat = correct.vessel(cat)  # returns cfvessel
-     
-      # many cases have measurements but no subsampling info  
+
+      # many cases have measurements but no subsampling info
       # ---- NOTE ::: sampwgt seems to be unreliable  -- recompute where necessary in "det"
-      
+
       # the following conversion are done here as sakm2 s not available in "gscat"
       # .. needs to be merged before use from gsinf
       # surface area of 1 standard set: sa =  41 (ft) * N  (nmi); N==1.75 for a standard trawl
       # the following express per km2 and so there is no need to "correct"  to std tow.
-      
+
       cat$totwgt  = cat$totwgt  * cat$cfset * cat$cfvessel # convert kg/set to kg/km^2
       cat$totno   = cat$totno   * cat$cfset * cat$cfvessel # convert number/set to number/km^2
- 
+
       # cat$sampwgt is unreliable for most data points nned to determine directly from "det"
       cat$sampwgt = NULL
-      
+
       # cat$cfsampling = cat$totwgt / cat$sampwgt
       # cat$cfsampling[ which( !is.finite(cat$cfsampling)) ] = 1 # can only assume everything was measured (conservative estimate)
 
-     
-      # cat$sampwgt =  cat$sampwgt * cat$cf   # keep same scale as totwgt to permit computations later on 
-      
+
+      # cat$sampwgt =  cat$sampwgt * cat$cf   # keep same scale as totwgt to permit computations later on
+
       save(cat, file=fn, compress=T )
 
       return (fn)
     }
-    
+
 
 
  # ----------------------
@@ -843,43 +844,43 @@
 
 
     if (DS %in% c("det", "det.redo") ) {
-      fn = file.path( project.datadirectory("groundfish"), "data", "det.rdata")
+      fn = file.path( project.datadirectory("bio.groundfish"), "data", "det.rdata")
       if ( DS=="det" ) {
         load( fn )
         return (det)
       }
- 
+
       # determine weighting factor for individual-level measurements (len, weight, condition, etc)
-      
+
       # at the set level, some species are not sampled even though sampwgt's are recorded
-      # this makes the total biomass > than that estimated from "DET" 
+      # this makes the total biomass > than that estimated from "DET"
       # an additional correction factor is required to bring it back to the total biomass caught,
-      # this must be aggregated across all species within each set :  
+      # this must be aggregated across all species within each set :
 
-      # correction factors for sampling etc after determination of mass and len 
+      # correction factors for sampling etc after determination of mass and len
       # for missing data due to subsampling methodology
-      # totals in the subsample that was taken should == sampwgt (in theory) but do not 
+      # totals in the subsample that was taken should == sampwgt (in theory) but do not
       # ... this is a rescaling of the sum to make it a 'proper' subsample
-      
-      det = groundfish.db( "det.base" )  # kg, cm
-      
-      massTotCat = applySum( det[ ,c("id2", "mass")], newnames=c("id2","massTotdet" ) )  
-      noTotCat = applySum( det$id2, newnames=c("id2","noTotdet" ) )  
 
-      cat = groundfish.db( "cat" ) # kg/km^2 and  no/km^2 
+      det = bio.groundfish.db( "det.base" )  # kg, cm
+
+      massTotCat = applySum( det[ ,c("id2", "mass")], newnames=c("id2","massTotdet" ) )
+      noTotCat = applySum( det$id2, newnames=c("id2","noTotdet" ) )
+
+      cat = bio.groundfish.db( "cat" ) # kg/km^2 and  no/km^2
       cat = cat[, c("id2", "totno", "totwgt", "cfset", "cfvessel" )]
       cat = merge( cat, massTotCat, by="id2", all.x=T, all.y=F, sort=F )  # set-->kg/km^2, det-->km
       cat = merge( cat, noTotCat, by="id2", all.x=T, all.y=F, sort=F )    # set-->no/km^2, det-->no
- 
+
       cat$cfdet =  cat$totwgt/ cat$massTotdet  # totwgt already corrected for vessel and tow .. cfdet is the multiplier required to make each det measurement scale properly
 
       # assume no subsampling -- all weights determined from the subsample
       oo = which ( !is.finite( cat$cfdet ) |  cat$cfdet==0 )
-      if (length(oo)>0) cat$cfdet[oo] = cat$cfset[oo] * cat$cfvessel[oo]  
-      
+      if (length(oo)>0) cat$cfdet[oo] = cat$cfset[oo] * cat$cfvessel[oo]
+
       # assume remaining have an average subsampling effect
       oo = which ( !is.finite( cat$cfdet ) |  cat$cfdet==0 )
-      if (length(oo)>0) cat$cfdet[oo] = median( cat$cfdet, na.rm=TRUE )  
+      if (length(oo)>0) cat$cfdet[oo] = median( cat$cfdet, na.rm=TRUE )
 
       cat = cat[, c("id2", "cfdet")]
       det = merge( det, cat, by="id2", all.x=T, all.y=F, sort=F)
@@ -887,77 +888,77 @@
       save( det, file=fn, compress=T )
       return( fn  )
     }
- 
+
 
 
  # ----------------------
 
-  
+
     if (DS %in% c("set.base", "set.base.redo") ) {
-      fn = file.path( project.datadirectory("groundfish"), "data", "set.base.rdata")
+      fn = file.path( project.datadirectory("bio.groundfish"), "data", "set.base.rdata")
       if ( DS=="set.base" ) {
         load( fn )
         return ( set )
       }
-      
-      gsinf = groundfish.db( "gsinf" ) 
-      
-      gshyd = groundfish.db( "gshyd" ) # already contains temp data from gsinf 
-      
-      set = merge(x=gsinf, y=gshyd, by=c("id"), all.x=T, all.y=F, sort=F) 
+
+      gsinf = bio.groundfish.db( "gsinf" )
+
+      gshyd = bio.groundfish.db( "gshyd" ) # already contains temp data from gsinf
+
+      set = merge(x=gsinf, y=gshyd, by=c("id"), all.x=T, all.y=F, sort=F)
       rm (gshyd, gsinf)
-    	
+
       oo = which( !is.finite( set$sdate)) # NED1999842 has no accompanying gsinf data ... drop it
-      if (length(oo)>0) set = set[ -oo  ,]  
+      if (length(oo)>0) set = set[ -oo  ,]
 
       # set$chron = as.chron(set$sdate)  ## chron is deprecated
       set$timestamp = set$sdate
-      # set$timestamp = as.POSIXct(set$sdate, origin=lubridate::origin) 
+      # set$timestamp = as.POSIXct(set$sdate, origin=lubridate::origin)
       # or simply: set$timestamp = set$sdate
       # set$yr = convert.datecodes(set$chron, "year" )
       # set$julian = convert.datecodes(set$chron, "julian")
       # set$julian = lubridate::yday( set$sdate )
       # set$sdate = NULL
 
-      set = set[, c("id", "timestamp", "yr", "strat", "dist_km", "dist_pos", 
+      set = set[, c("id", "timestamp", "yr", "strat", "dist_km", "dist_pos",
                  "sakm2", "lon", "lat", "sdepth", "temp", "sal", "oxyml", "settype")]
 
-      set = set[ !duplicated(set$id) ,] 
+      set = set[ !duplicated(set$id) ,]
       set$oxysat = compute.oxygen.saturation( t.C=set$temp, sal.ppt=set$sal, oxy.ml.l=set$oxyml)
       set$cfset = 1 / set$sakm2
 
       save ( set, file=fn, compress=T)
       return( fn  )
     }
-     
+
     # ----------------------
 
-    
+
     if (DS %in% c("catchbyspecies", "catchbyspecies.redo") ) {
-     fn = file.path( project.datadirectory("groundfish"), "data", "set.catchbyspecies.rdata")
+     fn = file.path( project.datadirectory("bio.groundfish"), "data", "set.catchbyspecies.rdata")
      if ( DS=="catchbyspecies" ) {
        load( fn )
        return ( set )
      }
- 
-      set = groundfish.db( "set.base" ) [, c("id", "yr")] # yr to maintain data structure
+
+      set = bio.groundfish.db( "set.base" ) [, c("id", "yr")] # yr to maintain data structure
 
       # add dummy variables to force merge suffixes to register
       set$totno = NA
       set$totwgt = NA
       set$ntaxa = NA
-      cat = groundfish.db( "cat" ) 
+      cat = bio.groundfish.db( "cat" )
       cat = cat[ which(cat$settype %in% c(1,2,5)) , ]  # required only here
-  
-    # settype: 1=stratified random, 2=regular survey, 3=unrepresentative(net damage), 
-    #  4=representative sp recorded(but only part of total catch), 5=comparative fishing experiment, 
+
+    # settype: 1=stratified random, 2=regular survey, 3=unrepresentative(net damage),
+    #  4=representative sp recorded(but only part of total catch), 5=comparative fishing experiment,
     #  6=tagging, 7=mesh/gear studies, 8=explorartory fishing, 9=hydrography
 
       cat0 = cat[, c("id", "spec", "totno", "totwgt")]
       rm(cat); gc()
       for (tx in taxa) {
         print(tx)
-        i = taxonomy.filter.taxa( cat0$spec, taxafilter=tx, outtype="groundfishcodes" )
+        i = taxonomy.filter.taxa( cat0$spec, taxafilter=tx, outtype="bio.groundfishcodes" )
         cat = cat0[i,]
         index = list(id=cat$id)
         qtotno = tapply(X=cat$totno, INDEX=index, FUN=sum, na.rm=T)
@@ -983,24 +984,24 @@
 
 
     if (DS %in% c("set.det", "set.det.redo") ) {
-      fn = file.path( project.datadirectory("groundfish"), "data", "set_det.rdata")
+      fn = file.path( project.datadirectory("bio.groundfish"), "data", "set_det.rdata")
       if ( DS=="set.det" ) {
         load( fn )
         return ( set )
       }
-      
+
       require (Hmisc)
-      set = groundfish.db( "set.base" ) [, c("id", "yr")] # yr to maintain data structure
-      newvars = c("rmean", "pmean", "mmean", "lmean", "rsd", "psd", "msd", "lsd") 
+      set = bio.groundfish.db( "set.base" ) [, c("id", "yr")] # yr to maintain data structure
+      newvars = c("rmean", "pmean", "mmean", "lmean", "rsd", "psd", "msd", "lsd")
       dummy = as.data.frame( array(data=NA, dim=c(nrow(set), length(newvars) )))
       names (dummy) = newvars
       set = cbind(set, dummy)
-      
-      det = groundfish.db( "det" )       
-     
+
+      det = bio.groundfish.db( "det" )
+
       #det = det[ which(det$settype %in% c(1, 2, 4, 5, 8) ) , ]
-    # settype: 1=stratified random, 2=regular survey, 3=unrepresentative(net damage), 
-    #  4=representative sp recorded(but only part of total catch), 5=comparative fishing experiment, 
+    # settype: 1=stratified random, 2=regular survey, 3=unrepresentative(net damage),
+    #  4=representative sp recorded(but only part of total catch), 5=comparative fishing experiment,
     #  6=tagging, 7=mesh/gear studies, 8=explorartory fishing, 9=hydrography
       det$mass = log10( det$mass )
       det$len  = log10( det$len )
@@ -1012,21 +1013,21 @@
       for (tx in taxa) {
         print(tx)
         if (tx %in% c("northernshrimp") ) next
-        i = taxonomy.filter.taxa( det0$spec, taxafilter=tx, outtype="groundfishcodes"  )
+        i = taxonomy.filter.taxa( det0$spec, taxafilter=tx, outtype="bio.groundfishcodes"  )
         det = det0[i,]
         index = list(id=det$id)
-        
+
         # using by or aggregate is too slow: raw computation is fastest using the fast formula: sd = sqrt( sum(x^2)-sum(x)^2/(n-1) ) ... as mass, len and resid are log10 transf. .. they are geometric means
 
         mass1 = tapply(X=det$mass*det$cfdet, INDEX=index, FUN=sum, na.rm=T)
         mass1 = data.frame(mass1=as.vector(mass1), id=I(names(mass1)))
-        
+
         mass2 = tapply(X=det$mass*det$mass*det$cfdet, INDEX=index, FUN=sum, na.rm=T)
         mass2 = data.frame(mass2=as.vector(mass2), id=I(names(mass2)))
 
         len1 = tapply(X=det$len*det$cfdet, INDEX=index, FUN=sum, na.rm=T)
         len1 = data.frame(len1=as.vector(len1), id=I(names(len1)))
-        
+
         len2 = tapply(X=det$len*det$len*det$cfdet, INDEX=index, FUN=sum, na.rm=T)
         len2 = data.frame(len2=as.vector(len2), id=I(names(len2)))
 
@@ -1042,13 +1043,13 @@
 
         qs$mmean = qs$mass1/qs$ntot
         qs$lmean = qs$len1/qs$ntot
-        
-        # these are not strictly standard deviations as the denominator is not n-1 
+
+        # these are not strictly standard deviations as the denominator is not n-1
         # but the sums being fractional and large .. is a close approximation
         # the "try" is to keep the warnings quiet as NANs are produced.
         qs$msd = try( sqrt( qs$mass2 - (qs$mass1*qs$mass1/qs$ntot) ), silent=T  )
         qs$lsd = try( sqrt( qs$len2 - (qs$len1*qs$len1/qs$ntot)  ), silent=T  )
-        
+
         qs = qs[, c("id","mmean", "lmean",  "msd", "lsd")]
         set = merge(set, qs, by=c("id"), sort=F, all.x=T, all.y=F, suffixes=c("", paste(".",tx,sep="")) )
       }
@@ -1059,63 +1060,63 @@
       save ( set, file=fn, compress=T)
       return( fn  )
     }
-    
+
     # ----------------------
-    
+
 
 
     if (DS %in% c("set.partial") ) {
-      
-      # this is everything in groundfish just prior to the merging in of habitat data
-      # useful for indicators db as the habitat data are brough in separately (and the rest of 
+
+      # this is everything in bio.groundfish just prior to the merging in of habitat data
+      # useful for indicators db as the habitat data are brough in separately (and the rest of
       # set.complete has not been refactored to incorporate the habitat data
 
-      set = groundfish.db( "set.base" )
+      set = bio.groundfish.db( "set.base" )
 
       # 1 merge catch
-      set = merge (set, groundfish.db( "catchbyspecies" ), by = "id", sort=F, all.x=T, all.y=F )
+      set = merge (set, bio.groundfish.db( "catchbyspecies" ), by = "id", sort=F, all.x=T, all.y=F )
 
       # 2 merge condition and other determined characteristics
-      set = merge (set, groundfish.db( "set.det" ), by = "id", sort=F, all.x=T, all.y=F )
-  
+      set = merge (set, bio.groundfish.db( "set.det" ), by = "id", sort=F, all.x=T, all.y=F )
+
       # strata information
-      gst = groundfish.db( DS="gsstratum" )
+      gst = bio.groundfish.db( DS="gsstratum" )
       w = c( "strat", setdiff( names(gst), names(set)) )
       if ( length(w) > 1 ) set = merge (set, gst[,w], by="strat", all.x=T, all.y=F, sort=F)
       set$area = as.numeric(set$area)
-      
+
       return( set)
-    
+
     }
 
     # ----------------------
-    
+
 
 
     if (DS %in% c("set.complete", "set.complete.redo") ) {
-      fn = file.path( project.datadirectory("groundfish"), "data", "set.rdata")
+      fn = file.path( project.datadirectory("bio.groundfish"), "data", "set.rdata")
       if ( DS=="set.complete" ) {
         load( fn )
         return ( set )
       }
-     
-      set = groundfish.db( "set.partial" )
+
+      set = bio.groundfish.db( "set.partial" )
       set = lonlat2planar(set, proj.type=p$internal.projection ) # get planar projections of lon/lat in km
       set$plon = grid.internal( set$plon, p$plons )
       set$plat = grid.internal( set$plat, p$plats )
       set = set[ which( is.finite( set$plon + set$plat) ), ]
 
-      set$z = set$sdepth 
+      set$z = set$sdepth
       set$t = set$temp
       set = habitat.lookup( set, DS="baseline", p=p )
-      set$z = log(set$z) 
+      set$z = log(set$z)
       # return planar coords to correct resolution
       # set = lonlat2planar( set, proj.type=p$internal.projection )
-      
+
       save ( set, file=fn, compress=F )
       return( fn )
     }
- 
+
 }
 
 

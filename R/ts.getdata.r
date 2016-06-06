@@ -10,7 +10,7 @@ ts.getdata = function (set=NULL, from.file=T, variables=NULL, plottimes=NULL, re
   }
 
 
-  R.gs = file.path( project.datadirectory("groundfish"), "R" )
+  R.gs = file.path( project.datadirectory("bio.groundfish"), "R" )
   if (from.file) {
     load ( file.path(R.gs, outfile1 ) )
   } else {

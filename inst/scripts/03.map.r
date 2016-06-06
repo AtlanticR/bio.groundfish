@@ -1,13 +1,13 @@
 
-  p = groundfish::load.groundfish.environment()
+  p = bio.bio.groundfish::load.bio.groundfish.environment()
 
 	gs.datayear = 2009
-	data.dir = file.path( project.datadirectory("groundfish"), "data", gs.datayear )
+	data.dir = file.path( project.datadirectory("bio.groundfish"), "data", gs.datayear )
 
 
 # ----------------------------
 # Map various data streams
-# most of these stream are created in "groundfish.r"
+# most of these stream are created in "bio.groundfish.r"
 
 # ----------------------------
 # 1 - define plot parameters
@@ -70,7 +70,7 @@ if (get.isobath) {  # tighter isobath-related outline of shelf at 1000m
 
 if (map="set") {
   dirbase = "maps"
-  set = groundfish.db( "set.complete" )
+  set = bio.groundfish.db( "set.complete" )
   set$sa = 1  # dummy required for mapping
   season = "summer"
   set = set[ filter.season( set$julian, period=season, index=T ) , ]
@@ -82,7 +82,7 @@ if (map="set") {
 
   variables =  variable.list.expand("all")
   outdir = paste(dirbase, params$spatial.domain, season, sep=".")
-  gmt.map.variables( set, params, variables, plottimes, outdir, conversions, libs=libs, db="groundfish" )
+  gmt.map.variables( set, params, variables, plottimes, outdir, conversions, libs=libs, db="bio.groundfish" )
 
 }
 
@@ -105,7 +105,7 @@ if (map="maturity") {
     x = x[ is.finite(rowSums(x[, c("yr", "lon", "lat")])), ]
     basedir = "maturity"
     outdir = file.path( basedir, paste("sex",sex,sep=""), params$spatial.domain )
-    gmt.map.variables ( x, params, variables, plottimes=plottimes, outdir, conversions, libs=libs, db="groundfish")
+    gmt.map.variables ( x, params, variables, plottimes=plottimes, outdir, conversions, libs=libs, db="bio.groundfish")
   }
 }
 

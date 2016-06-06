@@ -1,10 +1,10 @@
 
 # set up libs and bio functions
-p = groundfish::load.groundfish.environment()
+p = bio.bio.groundfish::load.bio.groundfish.environment()
 
 # define location of local data files
-p$scanmar.dir = file.path( project.datadirectory("groundfish"), "data", "nets", "Scanmar" )
-p$marport.dir = file.path( project.datadirectory("groundfish"), "data", "nets", "Marport" )
+p$scanmar.dir = file.path( project.datadirectory("bio.groundfish"), "data", "nets", "Scanmar" )
+p$marport.dir = file.path( project.datadirectory("bio.groundfish"), "data", "nets", "Marport" )
 
 # pick the year to process:
 # p$netmensuration.years = p$current.year  ## for incremental/annual update
