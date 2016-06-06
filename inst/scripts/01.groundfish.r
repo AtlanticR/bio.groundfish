@@ -15,17 +15,10 @@ p = bio.groundfish::load.groundfish.environment()
 
 # choose taxa or taxonomic groups of interest
   p$taxa.of.interest = variable.list.expand("catch.summary")
-
   p$season = "summer"
-
   p = spatial.parameters( p, "SSE" )  # data are from this domain .. so far
-
   p$taxa =  "maxresolved"
-
   p$nw = 10  # from temperature.r, number of intervals in a year
-
-
-
 
 
 # ------------------
@@ -34,8 +27,9 @@ p = bio.groundfish::load.groundfish.environment()
 # ---------
 # primary data sets
 # these should be run on a windows machine: NULL values get mangled for some reason
+  p$current.year = 2015
 
-  odbc.data.yrs=1970:2015
+  odbc.data.yrs=1970:p$current.year
     #  <<<<< ---- DATA YEAR can be a single year update too
     # --- for import of data year only
 
