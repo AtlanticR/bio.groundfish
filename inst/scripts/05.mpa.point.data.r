@@ -11,7 +11,7 @@ p$length.based = F
 p$size.class= c(30,60)
 p$by.sex = F
 
-#out = bio.groundfish.db(DS='gsdet.spec.redo',p=p)
+#out = groundfish.db(DS='gsdet.spec.redo',p=p)
 p$alpha = 0.05
 
 #out = bio.groundfish.analysis(DS='ab.redo',p=p)

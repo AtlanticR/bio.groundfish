@@ -70,7 +70,7 @@ if (get.isobath) {  # tighter isobath-related outline of shelf at 1000m
 
 if (map="set") {
   dirbase = "maps"
-  set = bio.groundfish.db( "set.complete" )
+  set = groundfish.db( "set.complete" )
   set$sa = 1  # dummy required for mapping
   season = "summer"
   set = set[ filter.season( set$julian, period=season, index=T ) , ]

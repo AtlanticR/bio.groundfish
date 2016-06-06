@@ -1,5 +1,5 @@
 
-  bio.groundfish.db = function(  DS="complete", p=NULL, taxa="all", datayrs=NULL  ) {
+  groundfish.db = function(  DS="complete", p=NULL, taxa="all", datayrs=NULL  ) {
 
     loc = file.path( project.datadirectory("bio.groundfish"), "data" )
     DataDumpFromWindows = F
@@ -11,21 +11,21 @@
     if (DS %in% c("odbc.redo") ) {
 
       # ODBC data dump of bio.groundfish tables
-      bio.groundfish.db( DS="gscat.odbc.redo", datayrs=datayrs )
-      bio.groundfish.db( DS="gsdet.odbc.redo", datayrs=datayrs )
-      bio.groundfish.db( DS="gsinf.odbc.redo", datayrs=datayrs )
-      bio.groundfish.db( DS="gshyd.profiles.odbc.redo", datayrs=datayrs )
+      groundfish.db( DS="gscat.odbc.redo", datayrs=datayrs )
+      groundfish.db( DS="gsdet.odbc.redo", datayrs=datayrs )
+      groundfish.db( DS="gsinf.odbc.redo", datayrs=datayrs )
+      groundfish.db( DS="gshyd.profiles.odbc.redo", datayrs=datayrs )
 
-      bio.groundfish.db( DS="gsmissions.odbc.redo" ) #  not working?
+      groundfish.db( DS="gsmissions.odbc.redo" ) #  not working?
 
       update.infrequently = F
       if (update.infrequently) {
         # the following do not need to be updated annually
-        bio.groundfish.db( DS="gscoords.odbc.redo" )
-        bio.groundfish.db( DS="spcodes.odbc.redo" )
-        bio.groundfish.db( DS="gslist.odbc.redo" )
-        bio.groundfish.db( DS="gsgear.odbc.redo" )
-        bio.groundfish.db( DS="gsstratum.odbc.redo" )
+        groundfish.db( DS="gscoords.odbc.redo" )
+        groundfish.db( DS="spcodes.odbc.redo" )
+        groundfish.db( DS="gslist.odbc.redo" )
+        groundfish.db( DS="gsgear.odbc.redo" )
+        groundfish.db( DS="gsstratum.odbc.redo" )
       }
 
     }
@@ -113,7 +113,7 @@
         return (gscat)
       }
 
-      gscat = bio.groundfish.db( DS="gscat.odbc" )
+      gscat = groundfish.db( DS="gscat.odbc" )
       gscat$year = NULL
 
       # remove data where species codes are ambiguous, or missing or non-living items
@@ -221,8 +221,8 @@
                 return(species.details)
              }
 
-             de  = bio.groundfish.db(DS='gsdet.odbc')
-             ins = bio.groundfish.db(DS='gsinf.odbc')
+             de  = groundfish.db(DS='gsdet.odbc')
+             ins = groundfish.db(DS='gsinf.odbc')
              i1 = which(months(ins$sdate) %in% c('June','July','August'))
              i2 = which(months(ins$sdate) %in% c('February','March','April'))
              i3 = which(ins$strat %in% c(440:495))
@@ -304,7 +304,7 @@
         return (gsdet)
       }
 
-      gsdet = bio.groundfish.db( DS="gsdet.odbc" )
+      gsdet = groundfish.db( DS="gsdet.odbc" )
       gsdet$year = NULL
 
       oo = which(!is.finite(gsdet$spec) )
@@ -378,10 +378,10 @@
         return (gsinf)
       }
 
-      gsinf = bio.groundfish.db( DS="gsinf.odbc" )
+      gsinf = groundfish.db( DS="gsinf.odbc" )
       names(gsinf)[which(names(gsinf)=="type")] = "settype"
 
-      gsgear = bio.groundfish.db( DS="gsgear" )
+      gsgear = groundfish.db( DS="gsgear" )
       gsinf = merge (gsinf, gsgear, by="gear", all.x=TRUE, all.y=FALSE, sort= FALSE )
 
       # fix some time values that have lost the zeros due to numeric conversion
@@ -555,7 +555,7 @@
         return (gshyd)
       }
 
-      gshyd = bio.groundfish.db( DS="gshyd.profiles.odbc" )
+      gshyd = groundfish.db( DS="gshyd.profiles.odbc" )
       gshyd$id = paste(gshyd$mission, gshyd$setno, sep=".")
       gshyd = gshyd[, c("id", "sdepth", "temp", "sal", "oxyml" )]
       save(gshyd, file=fn, compress=T)
@@ -574,7 +574,7 @@
         load( fn )
         return (gshyd)
       }
-      gshyd = bio.groundfish.db( DS="gshyd.profiles" )
+      gshyd = groundfish.db( DS="gshyd.profiles" )
       nr = nrow( gshyd)
 
       # candidate depth estimates from profiles
@@ -590,7 +590,7 @@
       oo = which( duplicated( gshyd$id ) )
       if (length(oo) > 0) stop( "Duplicated data in GSHYD" )
 
-      gsinf = bio.groundfish.db( "gsinf" )
+      gsinf = groundfish.db( "gsinf" )
       gsinf = gsinf[, c("id", "bottom_temperature", "bottom_salinity", "bottom_depth" ) ]
       gshyd = merge( gshyd, gsinf, by="id", all.x=T, all.y=F, sort=F )
 
@@ -628,7 +628,7 @@
         load( fn )
         return (gshyd)
       }
-      gsinf = bio.groundfish.db( "gsinf" )
+      gsinf = groundfish.db( "gsinf" )
       # gsinf$date = as.chron( gsinf$sdate )
       gsinf$timestamp = gsinf$sdate
       gsinf$yr = lubridate::year( gsinf$timestamp)
@@ -638,7 +638,7 @@
       gsinf$longitude = gsinf$lon
       gsinf$latitude = gsinf$lat
       gsinf = gsinf[ , c( "id", "lon", "lat", "yr", "timestamp" ) ]
-      gshyd = bio.groundfish.db( "gshyd.profiles" )
+      gshyd = groundfish.db( "gshyd.profiles" )
       gshyd = merge( gshyd, gsinf, by="id", all.x=T, all.y=F, sort=F )
       gshyd$sal[gshyd$sal<5]=NA
       save(gshyd, file=fn, compress=T)
@@ -760,8 +760,8 @@
         return (cat)
       }
 
-      gscat = bio.groundfish.db( "gscat" ) #kg/set, no/set
-      set = bio.groundfish.db( "set.base" )
+      gscat = groundfish.db( "gscat" ) #kg/set, no/set
+      set = groundfish.db( "set.base" )
       cat = merge(x=gscat, y=set, by=c("id"), all.x=T, all.y=F, sort=F)
       rm (gscat, set)
 
@@ -787,7 +787,7 @@
         return (det)
       }
 
-      det = bio.groundfish.db( "gsdet" )
+      det = groundfish.db( "gsdet" )
 
       det = det[, c("id", "id2", "spec", "fshno", "sex", "mat", "len", "mass", "age") ]
       det$mass = det$mass / 1000 # convert from g to kg
@@ -806,7 +806,7 @@
         return (cat)
       }
 
-      cat = bio.groundfish.db( DS="cat.base" )  # kg/set, no/set
+      cat = groundfish.db( DS="cat.base" )  # kg/set, no/set
 
       # combine correction factors or ignore trapability corrections ..
       # plaice correction ignored as they are size-dependent
@@ -862,12 +862,12 @@
       # totals in the subsample that was taken should == sampwgt (in theory) but do not
       # ... this is a rescaling of the sum to make it a 'proper' subsample
 
-      det = bio.groundfish.db( "det.base" )  # kg, cm
+      det = groundfish.db( "det.base" )  # kg, cm
 
       massTotCat = applySum( det[ ,c("id2", "mass")], newnames=c("id2","massTotdet" ) )
       noTotCat = applySum( det$id2, newnames=c("id2","noTotdet" ) )
 
-      cat = bio.groundfish.db( "cat" ) # kg/km^2 and  no/km^2
+      cat = groundfish.db( "cat" ) # kg/km^2 and  no/km^2
       cat = cat[, c("id2", "totno", "totwgt", "cfset", "cfvessel" )]
       cat = merge( cat, massTotCat, by="id2", all.x=T, all.y=F, sort=F )  # set-->kg/km^2, det-->km
       cat = merge( cat, noTotCat, by="id2", all.x=T, all.y=F, sort=F )    # set-->no/km^2, det-->no
@@ -901,9 +901,9 @@
         return ( set )
       }
 
-      gsinf = bio.groundfish.db( "gsinf" )
+      gsinf = groundfish.db( "gsinf" )
 
-      gshyd = bio.groundfish.db( "gshyd" ) # already contains temp data from gsinf
+      gshyd = groundfish.db( "gshyd" ) # already contains temp data from gsinf
 
       set = merge(x=gsinf, y=gshyd, by=c("id"), all.x=T, all.y=F, sort=F)
       rm (gshyd, gsinf)
@@ -941,13 +941,13 @@
        return ( set )
      }
 
-      set = bio.groundfish.db( "set.base" ) [, c("id", "yr")] # yr to maintain data structure
+      set = groundfish.db( "set.base" ) [, c("id", "yr")] # yr to maintain data structure
 
       # add dummy variables to force merge suffixes to register
       set$totno = NA
       set$totwgt = NA
       set$ntaxa = NA
-      cat = bio.groundfish.db( "cat" )
+      cat = groundfish.db( "cat" )
       cat = cat[ which(cat$settype %in% c(1,2,5)) , ]  # required only here
 
     # settype: 1=stratified random, 2=regular survey, 3=unrepresentative(net damage),
@@ -991,13 +991,13 @@
       }
 
       require (Hmisc)
-      set = bio.groundfish.db( "set.base" ) [, c("id", "yr")] # yr to maintain data structure
+      set = groundfish.db( "set.base" ) [, c("id", "yr")] # yr to maintain data structure
       newvars = c("rmean", "pmean", "mmean", "lmean", "rsd", "psd", "msd", "lsd")
       dummy = as.data.frame( array(data=NA, dim=c(nrow(set), length(newvars) )))
       names (dummy) = newvars
       set = cbind(set, dummy)
 
-      det = bio.groundfish.db( "det" )
+      det = groundfish.db( "det" )
 
       #det = det[ which(det$settype %in% c(1, 2, 4, 5, 8) ) , ]
     # settype: 1=stratified random, 2=regular survey, 3=unrepresentative(net damage),
@@ -1071,16 +1071,16 @@
       # useful for indicators db as the habitat data are brough in separately (and the rest of
       # set.complete has not been refactored to incorporate the habitat data
 
-      set = bio.groundfish.db( "set.base" )
+      set = groundfish.db( "set.base" )
 
       # 1 merge catch
-      set = merge (set, bio.groundfish.db( "catchbyspecies" ), by = "id", sort=F, all.x=T, all.y=F )
+      set = merge (set, groundfish.db( "catchbyspecies" ), by = "id", sort=F, all.x=T, all.y=F )
 
       # 2 merge condition and other determined characteristics
-      set = merge (set, bio.groundfish.db( "set.det" ), by = "id", sort=F, all.x=T, all.y=F )
+      set = merge (set, groundfish.db( "set.det" ), by = "id", sort=F, all.x=T, all.y=F )
 
       # strata information
-      gst = bio.groundfish.db( DS="gsstratum" )
+      gst = groundfish.db( DS="gsstratum" )
       w = c( "strat", setdiff( names(gst), names(set)) )
       if ( length(w) > 1 ) set = merge (set, gst[,w], by="strat", all.x=T, all.y=F, sort=F)
       set$area = as.numeric(set$area)
@@ -1100,7 +1100,7 @@
         return ( set )
       }
 
-      set = bio.groundfish.db( "set.partial" )
+      set = groundfish.db( "set.partial" )
       set = lonlat2planar(set, proj.type=p$internal.projection ) # get planar projections of lon/lat in km
       set$plon = grid.internal( set$plon, p$plons )
       set$plat = grid.internal( set$plat, p$plats )
