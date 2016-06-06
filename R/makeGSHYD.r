@@ -1,6 +1,6 @@
 makeGSHYD <- function(x) {
 	#x comes from compileODF.r
-	bioLibrary( "groundfish", "bathymetry" )
+	bioLibrary( "bio.groundfish", "bio.bathymetry" )
 	gshyd <- x[,c('mission','setno','temperature_ITS-68,degC_-99', 'salinity_PSU_-99' ,'oxygen_by_volume_ml/l_-99','depth')]
 	gshyd$gear <- 2
 	gshyd$eind <- NA

@@ -527,7 +527,7 @@
         names(gshyd) =  tolower( names(gshyd) )
         if(all(is.na(gshyd$mission))) {
         	#if gshyd is not loaded and the odf files are obtained AMC
-		        fy <- file.path(project.datadirectory("temperature"), "data", "archive", "ctd",YR)
+		        fy <- file.path(project.datadirectory("bio.temperature"), "data", "archive", "ctd",YR)
 		        o <- compileODF(path=fy)
 		        gshyd <- makeGSHYD(o)
         }

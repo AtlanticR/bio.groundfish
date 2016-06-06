@@ -1,4 +1,4 @@
-groundfish.analysis <- function(DS='stratified.estimates',out.dir = 'groundfish', p=p, ip=NULL) {
+groundfish.analysis <- function(DS='stratified.estimates',out.dir = 'bio.groundfish', p=p, ip=NULL) {
     loc = file.path( project.datadirectory(out.dir), "analysis" )
 
     dir.create( path=loc, recursive=T, showWarnings=F )

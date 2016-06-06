@@ -1,4 +1,4 @@
-figure.stratified.analysis <- function(x,p,out.dir='groundfish') {
+figure.stratified.analysis <- function(x,p,out.dir='bio.groundfish') {
 	fn=file.path(project.datadirectory(out.dir),'figures')
 	dir.create(fn,showWarnings=F)
 	if(is.character(x)) {
@@ -6,10 +6,10 @@ figure.stratified.analysis <- function(x,p,out.dir='groundfish') {
 		load(file.path(project.datadirectory('out.dir'),'analysis',x))
 		x = out; rm(out)
 		}
-	#default is to use the object directly	
+	#default is to use the object directly
 
 	with(p,{
-		 png(file=file.path(fn,file.name),units='in',width=15,height=12,pointsize=18, res=300,type='cairo')		
+		 png(file=file.path(fn,file.name),units='in',width=15,height=12,pointsize=18, res=300,type='cairo')
 		m='Yst' ; mm = 'n'; lev='Stratified Total'; mt= 'Number'; div = 1000
 		if(grepl('mean',measure)) {m = 'yst'; lev = 'Stratified Mean'; div =1}
 		if(grepl('weight',metric)) {mm = 'w'; mt = 'Weight'}
@@ -19,7 +19,7 @@ figure.stratified.analysis <- function(x,p,out.dir='groundfish') {
 		xp = x[,c('yr',n)]
 		if(ncol(xp)==5) names(xp) = c('year','mean','se','lower','upper')
 		if(ncol(xp)==4) names(xp) = c('year','mean','lower','upper')
-		
+
 		xp$mean = xp$mean / div; xp$lower = xp$lower / div; xp$upper = xp$upper / div
 		xpp = xp[which(xp$year>=time.series.start.year & xp$year<=time.series.end.year),  ]
 		ylim=c(min(xpp$lower),max(xpp$upper))
@@ -27,12 +27,12 @@ figure.stratified.analysis <- function(x,p,out.dir='groundfish') {
 			yl = ylim[2];
 			ylim[2] = y.maximum
 			sll = xpp[which(xpp$upper>y.maximum),c('year','upper')]
-		}		
-		
+		}
+
 			plot(xpp$year,xpp$mean,type='n',xlab='Year',ylab = paste(lev,mt,sep=" "),ylim=ylim)
 		if(error.polygon)	polygon(c(xpp$year,rev(xpp$year)),c(xpp$lower,rev(xpp$upper)),col='grey60', border=NA)
 		if(error.bars)  	arrows(x0=xpp$year,x1 = xpp$year, y0 = xpp$upper, y1 = xpp$lower, lwd=1, angle=90, length= 0)
-				
+
 		points(xpp$year,xpp$mean,type='b',lty=1,pch=16,lwd=2)
 
 		if(running.mean){
@@ -60,16 +60,16 @@ figure.stratified.analysis <- function(x,p,out.dir='groundfish') {
 						yym[io[i]] = y.maximum*(0.95-0.025)
 					}
 				}
-				
+
 				text(sll$year,yym,round(sll$upper,0),cex=0.85)
 			}
 		}
-	
+
 
 	if(add.reference.lines) {
 			me = xp[which(xp$year>=reference.start.year & xp$year<=reference.end.year), 'mean' ]
-			if(reference.measure=='median')	xref = median(me)	
-			if(reference.measure=='mean')	xref = mean(me)	
+			if(reference.measure=='median')	xref = median(me)
+			if(reference.measure=='mean')	xref = mean(me)
 			if(reference.measure=='geomean') xref = geomean(me)
 			if(add.primary.line) {
 				lines(x=c(time.series.start.year,time.series.end.year),y=c(xref,xref),col='blue',lty=1,lwd=2)
@@ -90,8 +90,8 @@ figure.stratified.analysis <- function(x,p,out.dir='groundfish') {
 	if(running.median)  legend(legend.placement,lty=c(1,1,1),lwd=c(4,4,4),col=c('darkgreen','blue','salmon'),c('80% reference period','40% reference period',paste(running.length,'yr Running Median',sep="")),bty='n',cex=0.8)
 	}
   title(figure.title)
-		
-		
+
+
 		print(file.path(fn,file.name))
 dev.off()
 if(add.reference.lines) {return(c(Reference=xref,Reflow=lxref,Refhi=uxref))}
