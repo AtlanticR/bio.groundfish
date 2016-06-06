@@ -1,4 +1,4 @@
-load.bio.groundfish.environment = function( libs=NULL, p=NULL ) {
+load.groundfish.environment = function( libs=NULL, p=NULL ) {
 
   if (is.null(p)) p = list()
 
