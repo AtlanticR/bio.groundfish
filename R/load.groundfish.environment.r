@@ -10,7 +10,7 @@ load.groundfish.environment = function( libs=NULL, p=NULL ) {
   # helper functions
   p$libs = unique( c( p$libs, bioLibrary( "bio.spacetime", "bio.utilities", "bio.taxonomy",
     "netmensuration", "bio.temperature", "bio.habitat", "bio.bathymetry",
-    "bio.bio", "bio.groundfish", "bio.polygons", "bio.coastline" ) ) ) #,"BIOsurvey" ) )
+    "bio.groundfish", "bio.polygons", "bio.coastline" ) ) )
 
   if (!is.null(libs)) p$libs = unique( c(p$libs, RLibrary(libs) ) )
 
