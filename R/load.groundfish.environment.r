@@ -5,7 +5,7 @@ load.groundfish.environment = function( libs=NULL, p=NULL ) {
   # libraries
   # note chron is deprecated -- use lubridate as it is faster and more general
   p$libs = RLibrary( "Hmisc", "date", "chron", "lubridate", "vegan", "fields", "sp",
-    "rgdal", "raster" , "INLA", "numDeriv", "lubridate", "geosphere" )
+    "rgdal", "raster" , "INLA", "numDeriv", "lubridate", "geosphere", "parallel" )
 
   # helper functions
   p$libs = unique( c( p$libs, bioLibrary( "bio.spacetime", "bio.utilities", "bio.taxonomy",
