@@ -1,0 +1,3463 @@
+CREATE OR REPLACE PACKAGE BODY NWAGS.gsmv_refresh AS
+PROCEDURE gsmv_init(
+                Button_in   IN      varchar2,
+                User_Id_in  IN      varchar2)
+/*
+PROCEDURE gsmv_init
+
+Procedure Name:		gsmv_init
+Author:				Pierre C. Brien
+Date Written:		2002/03/12
+Function:
+	This is the initial procedure of a series of procedures used to refresh materialized views of
+	stratified groundfish survey data. These materialized views (intermediate tables)
+	allow for computationally intensive procedures to be run on a timed basis rather than on
+	demand.
+
+    This procedure creates views of data so that the local data are made to appear in a common format.
+    The methodology is to interogate the local system for the global name and account/schema name from there
+    the program deletes and recreates views to give the local data a common format used to develop the
+    materialized views.
+
+    There are three main source views which are required
+        gsmvinf_tmp           mission set information
+        gsmvcat_tmp           catch info by species by set by mission
+        gsmvdet_tmp           detail info by fish by species by set by mission
+
+Modification History (as Date YYYY/MM/DD  initials - change description):
+	2002/03/12	pcb		removing specific table references and replacing them with
+	                    views which give different data sources a common look and feel
+*/
+IS
+	i                       NUMBER :=1 ;
+	cursor_handle           INTEGER := DBMS_SQL.OPEN_CURSOR;
+	dbms_sql_feedback       INTEGER;
+	success                 BOOLEAN := FALSE;
+	sql1_in                  VARCHAR2(2000);
+	sql2_in                  VARCHAR2(2000);
+	sql3_in                  VARCHAR2(2000);
+	sql4_in                  VARCHAR2(2000);
+    local_table             VARCHAR2(255);
+    global_name_x           VARCHAR2(4000);
+    user_name_x             VARCHAR2(32);
+    sys_acct_tbl_x          VARCHAR2(4000);
+
+BEGIN
+    sys_acct_tbl_x := sys_acct_tbl('GSINF',global_name_x,user_name_x,local_table) ;
+    local_table := 'GSMVINF_TMP';
+
+
+/*
+step 1 drop the views if they exist
+*/
+    FOR itest in (select view_name from user_views
+                  where view_name in('GSMVINF_TMP','GSMVCAT_TMP','GSMVDET_TMP','GSMVLF_TMP')) LOOP
+/* ORACLE 8i or above only
+        execute immediate 'drop view '||ITEST.VIEW_NAME;
+*/
+   DBMS_SQL.PARSE(cursor_handle,'drop view '||ITEST.VIEW_NAME ,DBMS_SQL.NATIVE);
+   dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    END LOOP;
+
+/*
+step 2 recreate the views
+*/
+    IF instr(global_name_x, 'BANK')    > 0 THEN
+        IF (user_name_x ='GROUNDFISH' OR user_name_x ='NWAGS') THEN
+             sql1_in := 'CREATE VIEW gsmvinf_tmp AS SELECT '||
+                'MISSION, SETNO, SDATE, TIME, STRAT, SLAT, SLONG, ELAT, ELONG, AREA, DUR, DIST, HOWD, SPEED, HOWS, DMIN, DMAX, '||
+                ' WIND, FORCE, CURNT, TYPE, GEAR, AUX, DEPTH, ETIME, '||
+                ' get_hyd_val(mission, setno,''S'',''T'') SURFACE_TEMPERATURE, '||
+                ' get_hyd_val(mission, setno,''S'',''S'') SURFACE_SALINITY, '||
+                ' get_hyd_val(mission, setno,''B'',''T'')  BOTTOM_TEMPERATURE, '||
+                ' get_hyd_val(mission, setno,''B'',''S'') BOTTOM_SALINITY  '||
+                ' FROM groundfish.gsinf';
+/*                ' FROM gsinf UNION SELECT '||
+                ' MISSION, SETNO, SDATE, TIME, NULL STRAT, SLAT, SLONG, ELAT, ELONG, AREA, DUR, DIST, HOWD, SPEED, HOWS, DMIN, DMAX, '||
+                ' WIND, FORCE, CURNT, TYPE, GEAR, AUX, DEPTH, ETIME, '||
+                ' TO_NUMBER(NULL) SURFACE_TEMPERATURE, '||
+                ' TO_NUMBER(NULL)  SURFACE_SALINITY, '||
+                ' BOTTOM_TEMPERATURE, '||
+                ' TO_NUMBER(NULL)  BOTTOM_SALINITY  '||
+                'FROM gsinfP70';
+*/
+             sql2_in := 'CREATE VIEW gsmvcat_tmp AS '||
+                        'SELECT mission, setno, spec, sampwgt, totwgt, totno, calwt, size_class '||
+                        ' FROM groundfish.gscat where NVL(size_class,0) < 2';
+/*                        'SELECT mission, setno, spec, sampwgt, totwgt, totno, calwt, size_class FROM gscat '||
+                        'UNION SELECT mission, setno, spec, sampwgt, totwgt, totno, calwt, size_class FROM gscatP70';
+*/
+             sql3_in := 'CREATE VIEW gsmvdet_tmp AS '||
+                        'SELECT  MISSION, SETNO, SPEC, FSHNO, FLEN, FSEX, FMAT, FWT, AGMAT, NANN, EDGE, CHKMRK, AGE, '||
+                        'AGER, CLEN, SIZE_CLASS FROM groundfish.gsdet '||
+                        'WHERE FLEN is not NULL AND (FWT is not NULL OR AGE is not NULL OR FSHNO is not NULL) AND CLEN = 1 AND NVL(size_class,0) < 2';
+/*                        'WHERE FLEN is not NULL AND (FWT is not NULL OR FSHNO is not NULL) AND CLEN = 1 '||
+                        'UNION SELECT MISSION, SETNO, SPEC, FSHNO, FLEN, FSEX, FMAT, TO_NUMBER(NULL) FWT, AGMAT, NANN, EDGE, CHKMRK, AGE, '||
+                        'AGER, CLEN, SIZE_CLASS FROM gsdetP70 '||
+                        'WHERE FLEN is not NULL AND FSHNO is not NULL AND CLEN = 1 ';
+*/
+             sql4_in := 'CREATE VIEW gsmvlf_tmp AS '||
+                        'SELECT  MISSION, SETNO, SPEC,  FLEN, FSEX, SIZE_CLASS, SUM(CLEN) CLEN FROM groundfish.gsdet '||
+                        ' where NVL(size_class,0) < 2 GROUP BY MISSION, SETNO, SPEC,  FLEN, FSEX, SIZE_CLASS ';
+/*                        'GROUP BY MISSION, SETNO, SPEC,  FLEN, FSEX, SIZE_CLASS '||
+                        'UNION SELECT MISSION, SETNO, SPEC,  FLEN, FSEX, SIZE_CLASS, SUM(CLEN) CLEN FROM gsdetP70 '||
+                        'GROUP BY MISSION, SETNO, SPEC,  FLEN, FSEX, SIZE_CLASS ';
+*/
+        ELSIF user_name_x ='BRANTON' THEN
+             sql1_in := 'CREATE VIEW gsmvinf_tmp AS SELECT '||
+                'MISSION, SETNO, SDATE, TIME, STRAT, SLAT, SLONG, ELAT, ELONG, AREA, DUR, DIST, HOWD, SPEED, HOWS, DMIN, DMAX, '||
+                ' WIND, FORCE, CURNT, TYPE, GEAR, AUX, DEPTH, ETIME, '||
+                ' get_hyd_val(mission, setno,''S'',''T'') SURFACE_TEMPERATURE, '||
+                ' get_hyd_val(mission, setno,''S'',''S'') SURFACE_SALINITY, '||
+                ' get_hyd_val(mission, setno,''B'',''T'')  BOTTOM_TEMPERATURE, '||
+                ' get_hyd_val(mission, setno,''B'',''S'') BOTTOM_SALINITY  '||
+                ' FROM rfinf';
+             sql2_in := 'CREATE VIEW gsmvcat_tmp AS ' ||
+                        'SELECT mission, setno, spec, sampwgt, totwgt, totno, calwt, 1 size_class FROM rfcat';
+             sql3_in := 'CREATE VIEW gsmvdet_tmp AS '||
+                'SELECT MISSION, SETNO, SPEC, FSHNO, FLEN, FSEX, FMAT, FWT, AGMAT, NANN, EDGE, CHKMRK, AGE, '||
+                        'AGER, CLEN, 1 SIZE_CLASS FROM rfdet '||
+                        'WHERE FLEN is not NULL AND (FWT is not NULL OR FSHNO is not NULL) AND CLEN = 1  ';
+             sql4_in := 'CREATE VIEW gsmvlf_tmp AS '||
+                        'SELECT  MISSION, SETNO, SPEC,  FLEN, FSEX, CLEN, 1 SIZE_CLASS FROM  '||
+                        '(SELECT  MISSION, SETNO, SPEC, FLEN, FSEX, SUM(CLEN) CLEN FROM rfdet '||
+                        'GROUP BY MISSION, SETNO, SPEC, FLEN, FSEX )';
+        END IF;
+    ELSIF instr(global_name_x, 'SABS') > 0 THEN
+         sql1_in := 'CREATE VIEW gsmvinf_tmp AS SELECT * FROM gsinf';
+         sql2_in := 'CREATE VIEW gsmvcat_tmp AS SELECT * FROM gscat';
+         sql3_in := 'CREATE VIEW gsmvdet_tmp AS SELECT * FROM gsdet';
+    ELSIF instr(global_name_x, 'GFC')  > 0 THEN
+         sql1_in := 'CREATE VIEW gsmvinf_tmp AS ' ||
+                    'SELECT  MISSION, SETNO, SDATE, TIME, STRAT, SLAT, SLONG, ELAT, ELONG, AREA, '||
+                    'DUR, DIST, HOWD, SPEED, HOWS, DMIN, DMAX, '||
+                    'WIND, FORCE, CURNT, TYPE, GEAR, AUX, DEPTH, ETIME, '||
+                    'SURFACE_TEMPERATURE,  TO_NUMBER(NULL)  SURFACE_SALINITY, '||
+                    'BOTTOM_TEMPERATURE, BOTTOM_SALINITY '||
+                    ' from brantonb.gsinf';
+/*                    'from brantonb.gsinf '||
+                    'UNION '||
+                    'SELECT  MISSION, SETNO, SDATE, TIME, NULL STRAT, SLAT, SLONG, ELAT, ELONG, AREA, '||
+                    'DUR, DIST, HOWD, SPEED, HOWS, DMIN, DMAX, '||
+                    'WIND, FORCE, CURNT, TYPE, GEAR, AUX, DEPTH, ETIME, '||
+                    'SURFACE_TEMPERATURE, TO_NUMBER(NULL)  SURFACE_SALINITY, '||
+                    'BOTTOM_TEMPERATURE, BOTTOM_SALINITY '||
+                    'FROM brantonb.gsinfP70'; */
+         sql2_in := 'CREATE VIEW gsmvcat_tmp AS '||
+                    'SELECT mission, setno, spec, sampwgt, totwgt, totno, calwt, 1 size_class FROM brantonb.gscat';
+/*                    'SELECT mission, setno, spec, sampwgt, totwgt, totno, calwt, 1 size_class FROM brantonb.gscat'||
+                    ' UNION '||
+                    'SELECT mission, setno, spec, sampwgt, totwgt, totno, calwt, 1 size_class FROM brantonb.gscatP70'; */
+             sql3_in := 'CREATE VIEW gsmvdet_tmp AS '||
+                        'SELECT  MISSION, SETNO, SPEC, FSHNO, FLEN, FSEX, FMAT, FWT, AGMAT, NANN, EDGE, CHKMRK, '||
+                        'decode(AGE, 99,NULL,AGE), AGER, CLEN, SIZE_CLASS FROM brantonb.gsdet '||
+                        'WHERE FLEN is not NULL AND (FWT is not NULL OR FSHNO is not NULL) AND CLEN = 1 ';
+/*                        'WHERE FLEN is not NULL AND (FWT is not NULL OR FSHNO is not NULL) AND CLEN = 1 '||
+                        'UNION SELECT MISSION, SETNO, SPEC, FSHNO, FLEN, FSEX, FMAT, TO_NUMBER(NULL) FWT, AGMAT, NANN, EDGE, CHKMRK, AGE, '||
+                        'AGER, CLEN, SIZE_CLASS FROM brantonb.gsdetP70 '||
+                        'WHERE FLEN is not NULL AND FSHNO is not NULL AND CLEN = 1 '; */
+             sql4_in := 'CREATE VIEW gsmvlf_tmp AS '||
+                        'SELECT  MISSION, SETNO, SPEC, FSHNO, FLEN, FSEX, SIZE_CLASS, SUM(CLEN) CLEN FROM brantonb.gsdet '||
+                        'GROUP BY MISSION, SETNO, SPEC, FSHNO, FLEN, FSEX, SIZE_CLASS ';
+/*                        'GROUP BY MISSION, SETNO, SPEC, FSHNO, FLEN, FSEX, SIZE_CLASS '||
+                        'UNION SELECT MISSION, SETNO, SPEC, FSHNO, FLEN, FSEX, SIZE_CLASS, SUM(CLEN) CLEN FROM brantonb.gsdetP70 '||
+                        'GROUP BY MISSION, SETNO, SPEC, FSHNO, FLEN, FSEX, SIZE_CLASS '; */
+-- PRO1 = IML
+    ELSIF instr(global_name_x, 'PRO1')  > 0 THEN
+         sql1_in := 'CREATE VIEW gsmvinf_tmp AS ' ||
+                    'SELECT  DECODE(i.cod_nbpc,''20'',''GAD'',''31'',''HAM'',''34'',''NED'',''39'',''TEL'',''ERR'')||'||
+                    'TO_CHAR(date_deb_trait,''YYYY'')||substr(to_char(i.no_releve,''099''),2,3) MISSION, '||
+                    'i.No_Station_trait SETNO, date_deb_trait SDATE, to_char(hre_deb_trait,''HH24MI'') TIME, '||
+                    'No_strate STRAT, latit_deb_trait SLAT, longit_deb_trait SLONG, '||
+                    'latit_fin_trait ELAT, longit_fin_trait ELONG, NULL AREA, '||
+                    'duree_trait DUR, dist_chalute_autre DIST, NULL HOWD, vit_touage SPEED, NULL HOWS, '||
+                    'mi.valeur_prof_trait DMIN,mx.valeur_prof_trait DMAX, '||
+                    'NULL WIND, NULL FORCE, NULL CURNT, cod_typ_trait TYPE, '||
+                    'cod_eng_gen GEAR, TO_NUMBER(NULL) AUX, TO_NUMBER(NULL) DEPTH,TO_NUMBER(NULL) ETIME, '||
+                    'TO_NUMBER(NULL) SURFACE_TEMPERATURE, TO_NUMBER(NULL)  SURFACE_SALINITY, '||
+                    'temp_eau_fond BOTTOM_TEMPERATURE, salinite_fond BOTTOM_SALINITY '||
+                    'from psentinelle_pro.trait_mobile i, psentinelle_pro.Profondeur_trait mi, psentinelle_pro.Profondeur_trait mx '||
+                    'WHERE cod_typ_trait = 1 AND '||
+                    'i.cod_source_info between 6 and 8 AND '||
+                    'i.cod_source_info = mi.cod_source_info(+) AND '||
+                    'i.cod_source_info = mx.cod_source_info(+) AND '||
+                    'i.no_releve = mi.no_releve(+) AND '||
+                    'i.no_releve = mx.no_releve(+) AND '||
+                    'i.no_station_trait = mi.no_station_trait(+) AND '||
+                    'i.no_station_trait = mx.no_station_trait(+) AND '||
+                    'i.cod_nbpc = mi.cod_nbpc(+) AND '||
+                    'i.cod_nbpc = mx.cod_nbpc(+) AND '||
+                    '1 = mi.cod_typ_prof_trait(+) AND '||
+                    '2 = mx.cod_typ_prof_trait(+)';
+
+         sql2_in := 'CREATE VIEW gsmvcat_tmp AS '||
+                    'SELECT  DECODE(c.cod_nbpc_mob,''20'',''GAD'',''31'',''HAM'',''34'',''NED'',''39'',''TEL'',''ERR'')||'||
+                    'TO_CHAR(date_deb_trait,''YYYY'')||substr(to_char(c.no_releve_mob,''099''),2,3) MISSION, '||
+                    'i.No_Station_trait SETNO, research spec, TO_NUMBER(NULL) sampwgt, '||
+                    'pds_capture_orig_mob totwgt,NVL( b.calc_no, nb_ind_capture_mob)  totno, TO_NUMBER(NULL) calwt, 1 size_class '||
+                    'from psentinelle_pro.trait_mobile i,  psentinelle_pro.capture c, '||
+                    '    (Select cod_esp_gen, seq_capture, count (*) calc_no from '||
+                    '     (select distinct cod_esp_gen, seq_capture, no_table, no_poisson from  psentinelle_pro.car_bio) group by cod_esp_gen, seq_capture) b, '||
+                    '     join_spcodes j '||
+                    'WHERE cod_typ_trait = 1 AND '||
+                    'i.cod_source_info between 6 and 8 AND  '||
+                    'i.cod_source_info = c.cod_source_info_mob AND  '||
+                    'i.no_releve = c.no_releve_mob AND '||
+                    'i.no_station_trait = c.no_station_trait_mob AND  '||
+                    'i.cod_nbpc = c.cod_nbpc_mob AND '||
+                    'j.IML = c.cod_esp_gen AND '||
+                    'b.cod_esp_gen(+) = c.cod_esp_gen AND b.seq_capture(+) = c.seq_capture';
+
+             sql3_in := 'CREATE VIEW gsmvdet_tmp AS '||
+                        '    SELECT  DECODE(c.cod_nbpc_mob,''20'',''GAD'',''31'',''HAM'',''34'',''NED'',''39'',''TEL'',''ERR'')|| '||
+                        '    TO_CHAR(date_deb_trait,''YYYY'')||substr(to_char(c.no_releve_mob,''099''),2,3) MISSION, '||
+                        '    i.No_Station_trait SETNO, research spec,  b.No_table *10000+b.No_Poisson fshno, '||
+                        '    decode (b.cod_sexe,1,1,5,2,9,0,NULL) Fsex,get_iml_mat (m.nom_stade_mat_f)  Fmat, '||
+                        '    valeur_pds_car_bio Fwt, cod_typ_long,    l.valeur_long_car_bio Flen,   a.age_lu age , 1 clen '||
+                        '    from psentinelle_pro.trait_mobile i,  psentinelle_pro.capture c, join_spcodes j, '||
+                        '         psentinelle_pro.Car_Bio b, psentinelle_pro.maturite m, psentinelle_pro.lecture_age a, '||
+                        '         psentinelle_pro.Longueur_car_bio l, psentinelle_pro.Poids_car_bio w '||
+                        '    WHERE cod_typ_trait = 1 AND  '||
+                        '    i.cod_source_info between 6 and 8 AND  '||
+                        '    i.cod_source_info = c.cod_source_info_mob AND  '||
+                        '    i.no_releve = c.no_releve_mob AND '||
+                        '    i.no_station_trait = c.no_station_trait_mob AND  '||
+                        '    i.cod_nbpc = c.cod_nbpc_mob AND '||
+                        '    j.IML = c.cod_esp_gen AND '||
+                        '    c.seq_capture = w.seq_capture AND  '||
+                        '    c.cod_esp_gen = w.cod_esp_gen AND  '||
+                        '    (w.cod_typ_pds = 1 OR w.cod_typ_pds = 11) AND  '||
+                        '    b.no_table    = w.no_table    AND '||
+                        '    b.no_poisson  = w.no_poisson  AND '||
+                        '    c.seq_capture = b.seq_capture AND '||
+                        '    c.cod_esp_gen = b.cod_esp_gen AND '||
+                        '    c.seq_capture = l.seq_capture AND '||
+                        '    c.cod_esp_gen = l.cod_esp_gen AND '||
+                        '    b.no_table    = l.no_table    AND '||
+                        '    b.no_poisson  = l.no_poisson  AND '||
+                        '    b.seq_capture = a.seq_capture(+) AND '||
+                        '    b.cod_esp_gen = a.cod_esp_gen(+) AND '||
+                        '    b.no_table    = a.no_table(+)    AND '||
+                        '    b.no_poisson  = a.no_poisson(+)  AND '||
+                        '    b.seq_maturite = m.seq_maturite(+)';
+
+/*
+	note that IML count at length data recording methodology changed in 1992
+	the UNION reflects the different data mapping before and after that date
+*/
+             sql4_in := 'CREATE VIEW gsmvlf_tmp AS '||
+                        'SELECT  DECODE(c.cod_nbpc_mob,''20'',''GAD'',''31'',''HAM'',''34'',''NED'',''39'',''TEL'',''ERR'')|| '||
+                        'TO_CHAR(date_deb_trait,''YYYY'')||substr(to_char(c.no_releve_mob,''099''),2,3) MISSION,'||
+                        'i.No_Station_trait SETNO, research spec,  b.No_table *10000+b.No_Poisson fshno, '||
+                        'decode (b.cod_sexe,1,1,5,2,9,0,NULL) Fsex, cod_typ_long,  l.valeur_long_car_bio Flen, '||
+                        ' 1 size_class, 1 clen '||
+                        'from psentinelle_pro.trait_mobile i,  psentinelle_pro.capture c, join_spcodes j, '||
+                        '     psentinelle_pro.Car_Bio b, psentinelle_pro.Longueur_car_bio l '||
+                        'WHERE cod_typ_trait = 1 AND '||
+                        'i.cod_source_info between 6 and 8 AND '||
+                        'i.cod_source_info = c.cod_source_info_mob AND '||
+                        'i.no_releve = c.no_releve_mob AND '||
+                        'i.no_station_trait = c.no_station_trait_mob AND '||
+                        'i.cod_nbpc = c.cod_nbpc_mob AND '||
+                        'j.IML = c.cod_esp_gen AND '||
+                        'c.seq_capture = b.seq_capture AND '||
+                        'c.cod_esp_gen = b.cod_esp_gen AND '||
+                        'b.cod_echantillonnage = 1      AND '||
+                        'b.seq_capture = l.seq_capture AND '||
+                        'b.cod_esp_gen = l.cod_esp_gen AND '||
+                        'b.no_table    = l.no_table    AND '||
+                        'b.no_poisson  = l.no_poisson';
+/* when we get pre 1992 data activate the union
+*/
+/*
+                        'UNION
+                        'SELECT  DECODE(c.cod_nbpc_mob,'20','GAD','31','HAM','34','NED','39','TEL','ERR')||  '||
+                        'TO_CHAR(date_deb_trait,'YYYY')||substr(to_char(c.no_releve_mob,'099'),2,3) MISSION, '||
+                        'i.No_Station_trait SETNO, research spec,  cod_sexe sex, cod_typ_long, taille flen, '||
+                        '1 size_class, nb_poisson clen '||
+                        'from psentinelle_pro.trait_mobile i,  psentinelle_pro.capture c, join_spcodes j, '||
+                        '      psentinelle_pro.freq_long_rr_ps l '||
+                        'WHERE '||
+                        'i.date_deb_trait < to_date('1992001' ,'YYYYDDD') AND '||
+                        'i.cod_typ_trait = 1 AND '||
+                        'i.cod_source_info between 6 and 8 AND '||
+                        'i.cod_source_info = c.cod_source_info_mob AND '||
+                        'i.no_releve = c.no_releve_mob AND '||
+                        'i.no_station_trait = c.no_station_trait_mob AND '||
+                        'i.cod_nbpc = c.cod_nbpc_mob AND '||
+                        'j.IML = c.cod_esp_gen AND '||
+                        'c.seq_capture = l.seq_capture AND '||
+                        'c.cod_esp_gen = l.cod_esp_gen';
+*/
+    END IF;
+/*
+step 3 now do it, clean up and go home
+*/
+/*  ORACLE 8i and above only */
+    EXECUTE IMMEDIATE sql1_in;
+    EXECUTE IMMEDIATE sql2_in;
+    EXECUTE IMMEDIATE sql3_in;
+    EXECUTE IMMEDIATE sql4_in;
+
+--/* Oracle 7 compatibility (also works on other versions but prefer NDS)
+--   DBMS_SQL.PARSE(cursor_handle,sql1_in,DBMS_SQL.NATIVE);
+--   dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+--
+--   DBMS_SQL.PARSE(cursor_handle,sql2_in,DBMS_SQL.NATIVE);
+--   dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+--
+--   DBMS_SQL.PARSE(cursor_handle,sql3_in,DBMS_SQL.NATIVE);
+--   dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+--
+--   DBMS_SQL.PARSE(cursor_handle,sql4_in,DBMS_SQL.NATIVE);
+--   dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+--*/
+DBMS_OUTPUT.PUT_LINE (' Finished gsmv_init_mv ');
+Commit;
+DBMS_SQL.CLOSE_CURSOR(cursor_handle);
+
+END;
+
+PROCEDURE make_gssinf_mv(
+                Button_in   IN      varchar2,
+                User_Id_in  IN      varchar2)
+/*
+PROCEDURE make gssinf mv
+
+Procedure Name:		make_gssinf_mv
+Author:				B. Branton
+Date Written:		2001/08/08
+Function:
+	This is one of a series of procedures used to refresh materialized views of
+	stratified groundfish survey data. These materialized views (intermediate tables)
+	allow for computationally intensive procedures to be run on a timed basis rather than on
+	demand.
+
+    This procedure computes the number of type 1 survey tows by stratum, year and series (20 seconds).
+
+Modification History (as Date YYYY/MM/DD  initials - change description):
+	2001/08/08	rb 		initial test version
+	2001/08/17	pcb		converted from script to procedures in a package,
+	                    added header commentary
+	2001/010/01	pcb		used gsdinf_mv as basis to make gssinf_mv
+
+*/
+IS
+	i                       NUMBER :=1 ;
+	cursor_handle           INTEGER := DBMS_SQL.OPEN_CURSOR;
+	dbms_sql_feedback       INTEGER;
+	success                 BOOLEAN := FALSE;
+	sql_in                  VARCHAR2(2000);
+BEGIN
+
+    FOR itest in (select constraint_name from user_constraints where constraint_name = 'GSSCAT_FK1') LOOP
+        sql_in := 'ALTER TABLE gsscat_mv DROP CONSTRAINT gsscat_fk1';
+    	DBMS_SQL.PARSE(cursor_handle,sql_in,DBMS_SQL.NATIVE);
+    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+    	DBMS_OUTPUT.PUT_LINE (' disabled  gsscat_fk1 ');
+    END LOOP;
+
+    FOR itest in (select constraint_name from user_constraints where constraint_name = 'GSS1LF_FK1') LOOP
+        sql_in := 'ALTER TABLE GSS1LF_MV DROP CONSTRAINT gss1lf_fk1';
+    	DBMS_SQL.PARSE(cursor_handle,sql_in,DBMS_SQL.NATIVE);
+    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+    	DBMS_OUTPUT.PUT_LINE (' disabled  gss1lf_fk1 ');
+    END LOOP;
+
+    FOR itest in (select constraint_name from user_constraints where constraint_name = 'GSS3LF_FK1') LOOP
+        sql_in := 'ALTER TABLE GSS3LF_MV DROP CONSTRAINT gss3lf_fk1';
+    	DBMS_SQL.PARSE(cursor_handle,sql_in,DBMS_SQL.NATIVE);
+    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+    	DBMS_OUTPUT.PUT_LINE (' disabled  gss3lf_fk1 ');
+    END LOOP;
+
+    FOR itest in (select *  from user_catalog where table_name ='GSSINF_MV') LOOP
+        sql_in := 'DROP TABLE gssinf_mv';
+    	DBMS_SQL.PARSE(cursor_handle,sql_in,DBMS_SQL.NATIVE);
+    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+    	DBMS_OUTPUT.PUT_LINE (' dropped gssinf_mv ');
+    END LOOP;
+
+    sql_in := 'CREATE TABLE gssinf_mv PCTFREE 0 UNRECOVERABLE AS '||
+      'SELECT series, year, i.strat, COUNT(*) ntows, avg (i.Depth)* 1.8288  avgdepth, '||
+      'AVG(stemp) avgstemp, AVG(ssal) avgssal, AVG(btemp) avgbtemp, AVG(bsal) avgbsal, '||
+      'VARIANCE(stemp) varstemp, VARIANCE(ssal) varssal, VARIANCE(btemp) varbtemp, VARIANCE(bsal) varbsal '||
+      'FROM gsdinf_mv i, gsstratum s  '||
+      'WHERE xtype=1 '||
+      'AND i.strat=s.strat '||
+      'GROUP BY series, year, i.strat';
+/*
+      I := 0;
+      WHILE (I < length(sql_in)) LOOP
+        DBMS_OUTPUT.PUT_LINE (substr(sql_in,I, 80));
+        I := I + 80;
+      END LOOP;
+ */
+DBMS_SQL.PARSE(cursor_handle, sql_in
+      ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+DBMS_SQL.PARSE(cursor_handle,
+      'ANALYZE TABLE gssinf_mv COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle,
+      'ALTER TABLE gssinf_mv ADD CONSTRAINT gssinf_ind PRIMARY KEY (series,year,strat) '||
+	  'PCTFREE 0 ' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle,
+      'ANALYZE INDEX gssinf_ind COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    gsmv_refresh.do_grants(User_list,'gssinf_mv|','select|');
+
+--    DBMS_SQL.PARSE(cursor_handle, 'GRANT SELECT ON gssinf_mv TO mflib' ,DBMS_SQL.NATIVE);
+--	  dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+--
+--    DBMS_SQL.PARSE(cursor_handle, 'GRANT SELECT ON gssinf_mv TO VDC' ,DBMS_SQL.NATIVE);
+--	  dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    FOR itest in (select * from user_catalog where table_name = 'GSSCAT_MV') LOOP
+        DBMS_SQL.PARSE(cursor_handle,
+           'ALTER TABLE gsscat_mv ADD CONSTRAINT gsscat_fk1 FOREIGN KEY (series,year,strat)  '||
+           'REFERENCES gssinf_mv(series,year,strat) PCTFREE 0 ' ,DBMS_SQL.NATIVE);
+        dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+	END LOOP;
+
+/*
+    DBMS_SQL.PARSE(cursor_handle, 'GRANT SELECT ON gssinf_mv TO harrisle' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+*/
+DBMS_SQL.CLOSE_CURSOR(cursor_handle);
+
+UPDATE MV_Refresh_Log SET USER_ID = user_id_in, Last_Refresh = SYSDATE
+    WHERE PK_Table_name = 'GSSINF_MV' AND fk_system_id = 'MV';
+
+DBMS_OUTPUT.PUT_LINE (' updated Refresh Log Table ');
+
+do_sql_stmnt('comment on table GSSINF_MV  is ''Number of tows and average depth, temperature and salinity by series, year and stratum.'||
+                                              ' // Nombre de traits, moyenne de profondeur, température et salinité par serie, année et strate''');
+do_sql_stmnt('comment on column GSSINF_MV.SERIES          IS ''survey series name'||
+                                                               ' // Identification de serie de reléve'' ');
+do_sql_stmnt('comment on column GSSINF_MV.YEAR            IS ''year of survey'||
+                                                              ' // année de la relevé''');
+do_sql_stmnt('comment on column GSSINF_MV.STRAT           IS ''survey stratum code'||
+                                                               ' // code de strate''');
+do_sql_stmnt('comment on column GSSINF_MV.nTOWS           IS ''Number of tows in stratum'||
+                                                               ' // nombre de traites dans la strate''');
+do_sql_stmnt('comment on column GSSINF_MV.avgdepth        IS ''average depth of tow (metres)'||
+                                                               ' // profondeur moyenne des traites (m)''');
+do_sql_stmnt('comment on column GSSINF_MV.avgstemp        IS ''average surface temperature (ºC)'||
+                                                               ' // moyenne de la temperature a la surface (ºC)''');
+do_sql_stmnt('comment on column GSSINF_MV.avgssal         IS ''average surface salinity (ppt)'||
+                                                               ' // moyenne de la salinite a la surface (ppm)''');
+do_sql_stmnt('comment on column GSSINF_MV.avgbtemp        IS ''average bottom temperature (ºC)'||
+                                                               ' // moyenne de la temperature au fond (ºC)''');
+do_sql_stmnt('comment on column GSSINF_MV.avgbsal         IS ''average bottom salinity (ppt)'||
+                                                               ' // moyenne de la salinite au fond (ppm)''');
+do_sql_stmnt('comment on column GSSINF_MV.varstemp        IS ''variance surface temperature (ºC)'||
+                                                               ' // variance de la temperature a la surface (ºC)''');
+do_sql_stmnt('comment on column GSSINF_MV.varssal         IS ''variance bottom salinity (ppt)'||
+                                                               ' // variance de la salinite a la surface (ppm)''');
+do_sql_stmnt('comment on column GSSINF_MV.varbtemp        IS ''variance bottom temptemperature (ºC)'||
+                                                               ' // variance de la temperature au fond (ºC)''');
+do_sql_stmnt('comment on column GSSINF_MV.varbsal         IS ''variance bottom salinity (ppt)'||
+                                                               ' // variance de la salinite au fond (ppm)''');
+
+DBMS_OUTPUT.PUT_LINE (' Finished gssinf_mv ');
+
+Commit;
+IF Button_in != 'NON_WEB' THEN
+    gsmv_refresh.MV_refresh_form(User_Id_in);
+END IF;
+
+END;
+
+
+PROCEDURE make_gsdinf_mv(
+                Button_in   IN      varchar2,
+                User_Id_in  IN      varchar2)
+/*
+PROCEDURE make gsdinf mv
+
+Procedure Name:		make_gsdinf_mv
+Author:				B. Branton
+Date Written:		2001/08/08
+Function:
+	This is one of a series of procedures used to refresh materialized views of
+	stratified groundfish survey data. These materialized views (intermediate tables)
+	allow for computationally intensive procedures to be run on a timed basis rather than on
+	demand.
+
+    This procedure prepares a minimal version of the detailed set info for NWAGS.
+
+Modification History (as Date YYYY/MM/DD  initials - change description):
+	2001/08/08	rb 		initial test version
+	2001/09/17	pcb		converted from script to procedures in a package,
+	                    added header commentary
+	2001/010/01	pcb		used gsdinf_mv as basis to make gssinf_mv
+	2001/011/26	pcb		removed experiment type restriction for D (detail)
+
+*/
+IS
+	i                       NUMBER :=1 ;
+	cursor_handle           INTEGER := DBMS_SQL.OPEN_CURSOR;
+	dbms_sql_feedback       INTEGER;
+	success                 BOOLEAN := FALSE;
+	sql_in                  VARCHAR2(2000);
+    local_table             VARCHAR2(255);
+    global_name_x           VARCHAR2(4000);
+    user_name_x             VARCHAR2(32);
+    datasource_x            VARCHAR2(32);
+    sys_acct_tbl_x          VARCHAR2(4000);
+
+BEGIN
+    sys_acct_tbl_x := sys_acct_tbl('GSINF',global_name_x,user_name_x,local_table) ;
+    local_table := 'GSMVINF_TMP';
+
+/*
+   make_gsdinf will always be the first proc to run when a complete rebuild is done
+   step 1 is to check if new cruises have been entered and to do a default entry into gsmission_list
+*/
+    IF (instr(global_name_x, 'BANK') > 0) AND (user_name_x = 'GROUNDFISH')  THEN
+        datasource_x  := 'GS';
+    ELSIF  (instr(global_name_x, 'BANK') > 0) AND (user_name_x = 'NWAGS')  THEN
+        datasource_x  := 'GS';
+    ELSIF  (instr(global_name_x, 'BANK') > 0) AND (user_name_x = 'BRANTON')  THEN
+        datasource_x  := 'RF';
+    ELSIF (instr(global_name_x, 'SABS') > 0) THEN
+        datasource_x  := 'GS';
+    ELSIF (instr(global_name_x, 'PRO1') > 0) THEN
+        datasource_x  := 'IML';
+    ELSIF (instr(global_name_x, 'GFC') > 0) THEN
+        datasource_x  := 'GFC';
+    ELSE
+        datasource_x  := 'GS';
+    END IF;
+    FOR itest in (SELECT DISTINCT mission FROM gsmvinf_tmp
+                  MINUS SELECT pk_mission FROM gsmission_exclude
+                  MINUS SELECT pk_mission FROM gsmission_list) LOOP
+        INSERT INTO gsmission_list
+           SELECT itest.mission, NVL(get_series(datasource_x, itest.mission),'UNKNOWN'), substr(itest.mission,4,4) YEAR,
+                  substr(itest.mission,1,3) vesel, substr(itest.mission,8,3) cruno, MIN(sdate) sdate, MAX(sdate) edate,
+                  count (*) nsets,NULL purpose, NULL locale,datasource_x datasource, 'Auto Add' datastatus, global_name_x datalocation
+                  FROM gsmvinf_tmp where mission = itest.mission;
+    END LOOP;
+
+/*
+*/
+    FOR itest in (select constraint_name from user_constraints where constraint_name = 'GSDCAT_FK1') LOOP
+        sql_in := 'ALTER TABLE gsdcat_mv DROP CONSTRAINT gsdcat_fk1';
+    	DBMS_SQL.PARSE(cursor_handle,sql_in,DBMS_SQL.NATIVE);
+    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+    	DBMS_OUTPUT.PUT_LINE (' disabled  gsdcat_fk1 ');
+    END LOOP;
+
+    FOR itest in (select constraint_name from user_constraints where constraint_name = 'GSD1LF_FK1') LOOP
+        sql_in := 'ALTER TABLE GSD1LF_mv DROP CONSTRAINT GSD1LF_fk1';
+    	DBMS_SQL.PARSE(cursor_handle,sql_in,DBMS_SQL.NATIVE);
+    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+    	DBMS_OUTPUT.PUT_LINE (' disabled  GSD1LF_fk1 ');
+    END LOOP;
+
+    FOR itest in (select constraint_name from user_constraints where constraint_name = 'GSD3LF_FK1') LOOP
+        sql_in := 'ALTER TABLE GSD3LF_mv DROP CONSTRAINT GSD3LF_fk1';
+    	DBMS_SQL.PARSE(cursor_handle,sql_in,DBMS_SQL.NATIVE);
+    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+    	DBMS_OUTPUT.PUT_LINE (' disabled  GSD1LF_fk1 ');
+    END LOOP;
+
+    FOR itest in (select constraint_name from user_constraints where constraint_name = 'GSDDET_FK1') LOOP
+        sql_in := 'ALTER TABLE GSDDET_mv DROP CONSTRAINT GSDDET_fk1';
+    	DBMS_SQL.PARSE(cursor_handle,sql_in,DBMS_SQL.NATIVE);
+    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+    	DBMS_OUTPUT.PUT_LINE (' disabled  GSD1LF_fk1 ');
+    END LOOP;
+
+    FOR itest in (select * from user_catalog where table_name = 'GSDINF_MV') LOOP
+        sql_in := 'DROP TABLE gsdinf_mv';
+    	DBMS_SQL.PARSE(cursor_handle,sql_in,DBMS_SQL.NATIVE);
+    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+    	DBMS_OUTPUT.PUT_LINE (' dropped gsdinf_mv ');
+    END LOOP;
+    sql_in := 'CREATE TABLE gsdinf_mv ( '||
+      ' SERIES                      VARCHAR2(16) NOT NULL, '||
+      ' YEAR                        NUMBER NOT NULL, '||
+      ' MISSION                     VARCHAR2(10) NOT NULL, '||
+      ' SETNO                       NUMBER(3) NOT NULL, '||
+      ' PRI_SET_NO                  NUMBER, '||
+      ' SDATE                       DATE, '||
+      ' STRAT                       VARCHAR2(3), '||
+      ' SLAT                        NUMBER, '||
+      ' SLONG                       NUMBER, '||
+      ' DEPTH                       NUMBER, '||
+      ' GEAR                        NUMBER(2), '||
+      ' DIST                        NUMBER(6,2), '||
+      ' XTYPE                       NUMBER(1), '||
+      ' STEMP                       NUMBER, '||
+      ' SSAL                        NUMBER, '||
+      ' BTEMP                       NUMBER, '||
+      ' BSAL                        NUMBER) '||
+      ' PCTFREE 0 ';
+    /*
+    DBMS_SQL.PARSE(cursor_handle, sql_in ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+   */
+   execute immediate sql_in;
+
+    sql_in := 'INSERT INTO  gsdinf_mv  '||
+      'SELECT l.FK_series_id series, l.year, i.mission, i.setno, '||
+      ' decode(nvl(r.station, -9),-9,i.setno, r.station) pri_set_no, i.sdate, i.strat, '||
+      'ROUND(TRUNC((i.SLAT/100),0) + ((MOD(i.SLAT,100))/60),4) SLAT, '||
+      '(ROUND((TRUNC((i.SLONG/100),0) + ((MOD(i.SLONG,100))/60)),4))* -1 SLONG, '||
+      'ROUND(NVL(i.DEPTH,(i.DMIN+i.DMAX)/2.00) * 1.8288) DEPTH, GEAR, DIST, TYPE XTYPE, '||
+      ' SURFACE_TEMPERATURE   stemp,  SURFACE_SALINITY ssal, '||
+	  ' BOTTOM_TEMPERATURE  btemp, BOTTOM_SALINITY  bsal '||
+      'FROM '||local_table||'  i, '||
+      'gsmission_list l, gsreps r '||
+      'WHERE l.PK_mission=i.mission '||
+      'AND  i.mission = r.mission(+) and i.setno = r.setno(+) '||
+      'AND i.setno IS NOT NULL ';
+
+      I := 0; -- debugging code to see what we are passing to SQL
+      WHILE (I < length(sql_in)) LOOP
+        DBMS_OUTPUT.PUT_LINE (substr(sql_in,I, 80));
+        I := I + 80;
+      END LOOP;
+    DBMS_SQL.PARSE(cursor_handle, sql_in ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle, 'ANALYZE TABLE gsdinf_mv COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle,
+      'ALTER TABLE gsdinf_mv ADD CONSTRAINT gsdinf_ind PRIMARY KEY (series, year, mission, setno) '||
+	  'PCTFREE 0 ' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle, 'ANALYZE INDEX gsdinf_ind COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle,
+      'CREATE INDEX gsdinf_ind2  ON gsdinf_mv (mission, setno) '||
+	  'PCTFREE 0 ' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle, 'ANALYZE INDEX gsdinf_ind2 COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    gsmv_refresh.do_grants(User_list,'gsdinf_mv|','select|');
+
+--    DBMS_SQL.PARSE(cursor_handle, 'GRANT SELECT ON gsdinf_mv TO mflib' ,DBMS_SQL.NATIVE);
+--	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+--
+--    DBMS_SQL.PARSE(cursor_handle, 'GRANT SELECT ON gsdinf_mv TO VDC' ,DBMS_SQL.NATIVE);
+--	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    FOR itest in (select * from user_catalog where table_name = 'GSDCAT_MV') LOOP
+        DBMS_SQL.PARSE(cursor_handle, 'ALTER TABLE gsdcat_mv ADD CONSTRAINT gsdcat_fk1 FOREIGN KEY (series, year, mission, setno)  '||
+                      'REFERENCES gsdinf_mv(series, year, mission, setno) PCTFREE 0 ' ,DBMS_SQL.NATIVE);
+    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+    END LOOP;
+
+    FOR itest in (select * from user_catalog where table_name = 'GSD1LF_MV') LOOP
+        DBMS_SQL.PARSE(cursor_handle, 'ALTER TABLE GSD1LF_mv ADD CONSTRAINT GSD1LF_fk1 FOREIGN KEY (series, year, mission, setno)  '||
+                      'REFERENCES gsdinf_mv(series, year, mission, setno) PCTFREE 0 ' ,DBMS_SQL.NATIVE);
+    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+    END LOOP;
+
+/*
+    DBMS_SQL.PARSE(cursor_handle, 'GRANT SELECT ON gsdinf_mv TO harrisle' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+*/
+
+DBMS_SQL.CLOSE_CURSOR(cursor_handle);
+
+UPDATE MV_Refresh_Log SET USER_ID = user_id_in, Last_Refresh = SYSDATE
+    WHERE PK_Table_name = 'GSDINF_MV' AND fk_system_id = 'MV';
+
+DBMS_OUTPUT.PUT_LINE (' updated Refresh Log Table ');
+
+do_sql_stmnt('comment on table GSDINF_MV  is ''Time, location, distance, depth, temperature and salinity for survey tows by series, year, stratum, mission and set number.'||
+                                              ' // Date, lieu, longuer de trait, profondeur, température et salinité de prises de relevés de chalut de fond  par serie, année, strate, mission et numéro de prise''');
+do_sql_stmnt('comment on column GSDINF_MV.MISSION                IS ''Mission/Cruise Id'||
+                                                                      ' // Identification de coisière''');
+do_sql_stmnt('comment on column GSDINF_MV.SETNO                  IS ''Survey set number'||
+                                                                      ' // Identification de traite de reléve''');
+do_sql_stmnt('comment on column GSDINF_MV.SERIES                 IS ''survey series name'||
+                                                                     ' // Identification de serie de reléve''');
+do_sql_stmnt('comment on column GSDINF_MV.YEAR                   IS ''Year of Survey'||
+                                                                     ' //  année de la Relevé''');
+do_sql_stmnt('comment on column GSDINF_MV.SDATE                  IS ''Sample Date'||
+                                                                      ' // date de l&rsquo;échantillon''');
+do_sql_stmnt('comment on column GSDINF_MV.STRAT                  IS ''survey stratum code'||
+                                                                      ' // code de strate''');
+do_sql_stmnt('comment on column GSDINF_MV.SLAT                   IS ''Sample Latitude'||
+                                                                      ' // Latitude de l&rsquo;échantillon''');
+do_sql_stmnt('comment on column GSDINF_MV.SLONG                  IS ''Sample Longitude'||
+                                                                      ' // Longitude de l&rsquo;échantillon''');
+do_sql_stmnt('comment on column GSDINF_MV.DEPTH                  IS ''Sample Depth'||
+                                                                      ' // Profondeur de l&rsquo;échantillon''');
+do_sql_stmnt('comment on column GSDINF_MV.GEAR                   IS ''Gear Identification Code'||
+                                                                      ' // Code de l&rsquo;engin de pêche''');
+do_sql_stmnt('comment on column GSDINF_MV.DIST                   IS ''Distance Towed'||
+                                                                      ' // longeur du trait ''');
+do_sql_stmnt('comment on column GSDINF_MV.XTYPE                  IS ''Experiment Type'||
+                                                                      ' // type de trait ''');
+do_sql_stmnt('comment on column GSDINF_MV.STEMP                  IS ''Surface Temperature'||
+                                                                      ' // temperature a la surface (ºC)''');
+do_sql_stmnt('comment on column GSDINF_MV.SSAL                   IS ''Surface Salinity'||
+                                                                      ' // salinite a la surface (ppm)''');
+do_sql_stmnt('comment on column GSDINF_MV.BTEMP                  IS ''Bottom Temperature'||
+                                                                      ' // temperature au fond (ºC)''');
+do_sql_stmnt('comment on column GSDINF_MV.BSAL                   IS ''Bottom Salinity'||
+                                                                      ' // salinite au fond (ppm)''');
+
+
+DBMS_OUTPUT.PUT_LINE (' Finished gsdinf_mv ');
+Commit;
+IF Button_in != 'NON_WEB' THEN
+    gsmv_refresh.MV_refresh_form(User_Id_in);
+END IF;
+
+END;
+
+PROCEDURE make_gsdcat_mv(
+                Button_in   IN      varchar2,
+                User_Id_in  IN      varchar2)
+/*
+PROCEDURE make gsdcat mv
+
+Procedure Name:		make_gsdcat_mv
+Author:				B. Branton
+Date Written:		2001/08/08
+Function:
+	This is one of a series of procedures used to refresh materialized views of
+	stratified groundfish survey data. These materialized views (intermediate tables)
+	allow for computationally intensive procedures to be run on a timed basis rather than on
+	demand.
+
+    This procedure prepares a minimal version of the detailed catch info for NWAGS.
+
+Modification History (as Date YYYY/MM/DD  initials - change description):
+	2001/08/08	rb 		initial test version
+	2001/09/17	pcb		converted from script to procedures in a package,
+	                    added header commentary
+	2001/010/01	pcb		used gsdinf as basis to make gsdcat
+
+*/
+IS
+	i                       NUMBER :=1 ;
+	cursor_handle           INTEGER := DBMS_SQL.OPEN_CURSOR;
+	dbms_sql_feedback       INTEGER;
+	success                 BOOLEAN := FALSE;
+	sql_in                  VARCHAR2(2000);
+BEGIN
+
+    FOR itest in (select * from user_catalog where table_name = 'GSDCAT_MV') LOOP
+        sql_in := 'DROP TABLE gsdcat_mv';
+    	DBMS_SQL.PARSE(cursor_handle,sql_in,DBMS_SQL.NATIVE);
+    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+    	DBMS_OUTPUT.PUT_LINE (' dropped gsdcat_mv ');
+    END LOOP;
+
+    sql_in := 'CREATE TABLE gsdcat_mv PCTFREE 0 UNRECOVERABLE AS '||
+      'SELECT i.series, i.year, i.strat, c.MISSION, c.SETNO, c.SPEC, '||
+      'c.totwgt , c.totno , c.totwgt* (1.75/i.dist) stdWGT ,c.totno* (1.75/i.dist) stdNO '||
+      'FROM gsmvcat_tmp c, gsdinf_mv i '||
+      'WHERE c.mission = i.mission '||
+      'AND c.setno   = i.setno '||
+--      'AND i.xtype  != 3 '||
+      'AND c.spec IS NOT NULL ' ;
+
+     /* I := 0;
+      WHILE (I < length(sql_in)) LOOP
+        DBMS_OUTPUT.PUT_LINE (substr(sql_in,I, 80));
+        I := I + 80;
+      END LOOP; */
+    DBMS_SQL.PARSE(cursor_handle, sql_in      ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle, 'ANALYZE TABLE gsdcat_mv COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    gsmv_refresh.do_grants(User_list,'gsdcat_mv|','select|');
+
+--    DBMS_SQL.PARSE(cursor_handle, 'GRANT SELECT ON gsdcat_mv TO mflib' ,DBMS_SQL.NATIVE);
+--	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+--
+--    DBMS_SQL.PARSE(cursor_handle, 'GRANT SELECT ON gsdcat_mv TO VDC' ,DBMS_SQL.NATIVE);
+--	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle, 'ALTER TABLE gsdcat_mv ADD CONSTRAINT gsdcat_ind  PRIMARY KEY (series, year, mission, setno, spec) '||
+                  'PCTFREE 0 ' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle, 'ANALYZE INDEX gsdcat_ind COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle,
+      'CREATE INDEX gsdcat_ind2  ON gsdcat_mv (mission, setno, spec) PCTFREE 0 ' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle, 'ANALYZE INDEX gsdcat_ind2 COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+
+    DBMS_SQL.PARSE(cursor_handle, 'ALTER TABLE gsdcat_mv ADD CONSTRAINT gsdcat_fk1 FOREIGN KEY (series, year, mission, setno)  '||
+                  'REFERENCES gsdinf_mv(series, year, mission, setno) PCTFREE 0 ' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+/*
+    DBMS_SQL.PARSE(cursor_handle, 'GRANT SELECT ON gsdcat_mv TO harrisle' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+*/
+
+    DBMS_SQL.CLOSE_CURSOR(cursor_handle);
+
+    UPDATE MV_Refresh_Log SET USER_ID = user_id_in, Last_Refresh = SYSDATE
+        WHERE PK_Table_name = 'GSDCAT_MV' AND fk_system_id = 'MV';
+
+DBMS_OUTPUT.PUT_LINE (' updated Refresh Log Table ');
+
+
+do_sql_stmnt('comment on table GSDCAT_MV  is ''Total number and weight of species by series, year, stratum, mission and set number'||
+                                               ' // Total de nombre et poids de chaque espèce par serie, année, strate, mission et numéro de prise''');
+do_sql_stmnt('comment on column GSDCAT_MV.SERIES         IS ''survey series name'||
+                                                         ' // Identification de serie de reléve''');
+do_sql_stmnt('comment on column GSDCAT_MV.YEAR           IS ''Year of Survey'||
+                                                         ' // année de la Relevé''');
+do_sql_stmnt('comment on column GSDCAT_MV.STRAT          IS ''survey stratum code'||
+                                                         ' // code de strate''');
+do_sql_stmnt('comment on column GSDCAT_MV.MISSION        IS ''Mission/Cruise Id'||
+                                                         ' // Identification de coisière''');
+do_sql_stmnt('comment on column GSDCAT_MV.SETNO          IS ''Survey set number'||
+                                                         ' // Identification de traite de reléve''');
+do_sql_stmnt('comment on column GSDCAT_MV.SPEC           IS ''Research species code'||
+                                                         ' // code d&rsquo;espèce de recherche''');
+do_sql_stmnt('comment on column GSDCAT_MV.TOTWGT         IS ''Total Weight of species in catch(kg)'||
+                                                         ' // poids total (kg) d&rsquo;une espèce dans la prise''');
+do_sql_stmnt('comment on column GSDCAT_MV.TOTNO          IS ''Total Numbers of species in catch'||
+                                                         ' // nombres total d&rsquo;une espèce dans la prise''');
+do_sql_stmnt('comment on column GSDCAT_MV.STDWGT         IS ''Total Weight of species in catch(kg)  standardized for distance'||
+                                                         ' // poids total (kg) d&rsquo;une espèce dans la prise standardisé pour la distance''');
+do_sql_stmnt('comment on column GSDCAT_MV.STDNO          IS ''Total Numbers of species in catch standardized for distance'||
+                                                         ' // nombres total d&rsquo;une espèce dans la prise standardisé pour la distance''');
+
+
+DBMS_OUTPUT.PUT_LINE (' Finished gsdcat_mv ');
+Commit;
+IF Button_in != 'NON_WEB' THEN
+    gsmv_refresh.MV_refresh_form(User_Id_in);
+END IF;
+
+END;
+
+PROCEDURE make_gsscat_mv(
+                Button_in   IN      varchar2,
+                User_Id_in  IN      varchar2)
+/*
+PROCEDURE make gsscat mv
+
+Procedure Name:		make_gsscat_mv
+Author:				B. Branton
+Date Written:		2001/08/08
+Function:
+	This is one of a series of procedures used to refresh materialized views of
+	stratified groundfish survey data. These materialized views (intermediate tables)
+	allow for computationally intensive procedures to be run on a timed basis rather than on
+	demand.
+
+    This procedure prepares a minimal version of the detailed set info for NWAGS.
+
+Modification History (as Date YYYY/MM/DD  initials - change description):
+	2001/08/08	rb 		initial test version
+	2001/09/17	pcb		converted from script to procedures in a package,
+	                    added header commentary
+	2001/010/01	pcb		used gsscat as basis to make gsscat
+
+*/
+IS
+	i                       NUMBER :=1 ;
+	cursor_handle           INTEGER := DBMS_SQL.OPEN_CURSOR;
+	dbms_sql_feedback       INTEGER;
+	success                 BOOLEAN := FALSE;
+	sql_in                  VARCHAR2(2000);
+BEGIN
+
+    FOR itest in (select * from user_catalog where table_name = 'GSSCAT_MV') LOOP
+        sql_in := 'DROP TABLE gsscat_mv';
+    	DBMS_SQL.PARSE(cursor_handle,sql_in,DBMS_SQL.NATIVE);
+    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+    	DBMS_OUTPUT.PUT_LINE (' dropped gsscat_mv ');
+    END LOOP;
+
+    sql_in := 'CREATE TABLE gsscat_mv PCTFREE 0 UNRECOVERABLE AS '||
+      'SELECT tw.series, tw.year, tw.strat, tw.ntows, cat.spec, '||
+      'cat.sumraw_totwgt/ tw.ntows avgwgt, cat.sumraw_totno/ tw.ntows avgno, '||
+      'TO_NUMBER(DECODE(tw.ntows,1, NULL,(cat.ssqraw_totwgt - cat.sqsraw_totwgt/tw.ntows)/(tw.ntows-1))) varwgt, '||
+	  'TO_NUMBER(DECODE(tw.ntows,1, NULL,(cat.ssqraw_totno  - cat.sqsraw_totno /tw.ntows)/(tw.ntows-1))) varno, '||
+	  'cat.sumadj_totwgt/ tw.ntows avgstdwgt, cat.sumadj_totno/ tw.ntows avgstdno, '||
+      'TO_NUMBER(DECODE(tw.ntows,1, NULL,(cat.ssqadj_totwgt - cat.sqsadj_totwgt/tw.ntows)/(tw.ntows-1))) varstdwgt, '||
+      'TO_NUMBER(DECODE(tw.ntows,1, NULL,(cat.ssqadj_totno  - cat.sqsadj_totno /tw.ntows)/(tw.ntows-1))) varstdno '||
+      'FROM  (SELECT series, year, strat, spec, '||
+      '    SUM(totwgt) sumraw_totwgt, SUM(POWER(totwgt,2)) ssqraw_totwgt, POWER(SUM(totwgt),2) sqsraw_totwgt, '||
+      '    SUM(stdwgt) sumadj_totwgt, SUM(POWER(stdwgt,2)) ssqadj_totwgt, POWER(SUM(stdwgt),2) sqsadj_totwgt, '||
+      '    SUM(totno) sumraw_totno, SUM(POWER(totno,2)) ssqraw_totno, POWER(SUM(totno),2) sqsraw_totno, '||
+      '    SUM(stdno) sumadj_totno, SUM(POWER(stdno,2)) ssqadj_totno, POWER(SUM(stdno),2) sqsadj_totno '||
+      '    FROM gsdcat_mv  GROUP BY series, year, strat, spec) cat,'||
+      '  gssinf_mv tw '||
+      ' WHERE cat.series=tw.series '||
+      ' AND cat.year=tw.year '||
+      ' AND cat.strat=tw.strat AND cat.SPEC IS NOT NULL ';
+
+      I := 0;
+      WHILE (I < length(sql_in)) LOOP
+        DBMS_OUTPUT.PUT_LINE (substr(sql_in,I, 80));
+        I := I + 80;
+      END LOOP;
+    DBMS_SQL.PARSE(cursor_handle, sql_in      ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle,  'ANALYZE TABLE gsscat_mv COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    gsmv_refresh.do_grants(User_list,'gsscat_mv|','select|');
+
+--    DBMS_SQL.PARSE(cursor_handle, 'GRANT SELECT ON gsscat_mv TO mflib' ,DBMS_SQL.NATIVE);
+--	  dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+--
+--    DBMS_SQL.PARSE(cursor_handle, 'GRANT SELECT ON gsscat_mv TO VDC' ,DBMS_SQL.NATIVE);
+--	  dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle,
+        'ALTER TABLE gsscat_mv ADD CONSTRAINT gsscat_ind  PRIMARY KEY (series, year, strat, spec) '||
+         'PCTFREE 0 ' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle, 'ANALYZE INDEX gsscat_ind COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle,
+        'ALTER TABLE gsscat_mv ADD CONSTRAINT gsscat_fk1 FOREIGN KEY (series,year,strat)  '||
+        'REFERENCES gssinf_mv(series,year,strat) PCTFREE 0 ' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+/*
+    DBMS_SQL.PARSE(cursor_handle,  'GRANT SELECT ON gsscat_mv TO harrisle' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+*/
+
+DBMS_SQL.CLOSE_CURSOR(cursor_handle);
+
+UPDATE MV_Refresh_Log SET USER_ID = user_id_in, Last_Refresh = SYSDATE
+    WHERE PK_Table_name = 'GSSCAT_MV' AND fk_system_id = 'MV';
+
+DBMS_OUTPUT.PUT_LINE (' updated Refresh Log Table ');
+
+do_sql_stmnt('comment on table GSSCAT_MV  is ''Average number and weight of species by by series, year and stratum'||
+                                               ' // Moyenne de nombre et poids de chaque espèce par serie, année et strate''');
+do_sql_stmnt('comment on column GSSCAT_MV.SERIES       IS ''survey series name'||
+                                                            ' // Identification de serie de reléve''');
+do_sql_stmnt('comment on column GSSCAT_MV.year         IS ''Year of Survey'||
+                                                            ' // année de la Relevé''');
+do_sql_stmnt('comment on column GSSCAT_MV.STRAT        IS ''survey stratum code'||
+                                                            ' // code de strate''');
+do_sql_stmnt('comment on column GSSCAT_MV.ntows        IS ''Number of Tows in Stratum'||
+                                                            ' // nombre de traites dans la strate''');
+do_sql_stmnt('comment on column GSSCAT_MV.spec         IS ''Research species code'||
+                                                            ' // code d&rsquo;espèce de recherche''');
+do_sql_stmnt('comment on column GSSCAT_MV.avgwgt       IS ''average total weight(kg) per tow of species in catch'||
+                                                            ' // moyenne de poids total (kg) d&rsquo;espèce par prise de traite''');
+do_sql_stmnt('comment on column GSSCAT_MV.avgno        IS ''average total number per tow of species in catch'||
+                                                            ' // moyenne de nombres d&rsquo;espèce par prise de traite''');
+do_sql_stmnt('comment on column GSSCAT_MV.varwgt       IS ''variance of total weight(kg) per tow of species in catch'||
+                                                            ' // variance de poids total (kg) d&rsquo;espèce par prise de traite''');
+do_sql_stmnt('comment on column GSSCAT_MV.varno        IS ''variance of the total number per tow of species in catch'||
+                                                            ' // variance de nombres d&rsquo;espèce par prise de traite''');
+do_sql_stmnt('comment on column GSSCAT_MV.avgstdwgt    IS ''average of the distance adjusted total weight(kg) per tow of species in catch'||
+                                                            ' // moyenne de poids total (kg) d&rsquo;espèce par prise de traite standardisé pour la distance''');
+do_sql_stmnt('comment on column GSSCAT_MV.avgstdno     IS ''average of the distance adjusted total number per tow of species in catch'||
+                                                            ' // moyenne de nombres d&rsquo;espèce par prise de traite standardisé pour la distance''');
+do_sql_stmnt('comment on column GSSCAT_MV.varstdwgt    IS ''variance of the distance adjusted total weight'||
+                                                            ' // variance de poids total (kg) d&rsquo;espèce par prise de traite standardisé pour la distance''');
+do_sql_stmnt('comment on column GSSCAT_MV.varstdno     IS ''variance of the distance adjusted total number'||
+                                                            ' // variance de nombres d&rsquo;espèce par prise de traite standardisé pour la distance''');
+
+DBMS_OUTPUT.PUT_LINE (' Finished gsscat_mv ');
+Commit;
+IF Button_in != 'NON_WEB' THEN
+    gsmv_refresh.MV_refresh_form(User_Id_in);
+END IF;
+END;
+
+/* ****************** */
+
+PROCEDURE make_gsddet_mv(
+                Button_in   IN      varchar2,
+                User_Id_in  IN      varchar2)
+/*
+PROCEDURE make gsddet_mv
+
+Procedure Name:		make_gsddet_mv
+Author:				B. Branton
+Date Written:		2001/08/08
+Function:
+	This is one of a series of procedures used to refresh materialized views of
+	stratified groundfish survey data. These materialized views (intermediate tables)
+	allow for computationally intensive procedures to be run on a timed basis rather than on
+	demand.
+
+    This procedure prepares a minimal version of the detailed catch info for NWAGS.
+
+Modification History (as Date YYYY/MM/DD  initials - change description):
+	2001/08/08	rb 		initial test version
+	2001/09/17	pcb		converted from script to procedures in a package,
+	                    added header commentary
+	2001/010/01	pcb		used gsdinf_mv as basis to make gsddet_mv
+
+*/
+IS
+	i                       NUMBER :=1 ;
+	cursor_handle           INTEGER := DBMS_SQL.OPEN_CURSOR;
+	dbms_sql_feedback       INTEGER;
+	success                 BOOLEAN := FALSE;
+	sql_in                  VARCHAR2(2000);
+BEGIN
+
+    FOR itest in (select * from user_catalog where table_name = 'GSDDET_MV') LOOP
+        sql_in := 'DROP TABLE GSDDET_MV';
+    	DBMS_SQL.PARSE(cursor_handle,sql_in,DBMS_SQL.NATIVE);
+    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+    	DBMS_OUTPUT.PUT_LINE (' dropped GSDDET_MV ');
+    END LOOP;
+
+   /* note that the selection for detailed specimens requires that either the sex age or weight be non null
+      as well as specifying that the standard indicators for a detailed specimen fshno (NOT NULL) and clen = 1  */
+    sql_in := 'CREATE TABLE GSDDET_MV PCTFREE 0 UNRECOVERABLE AS '||
+      'SELECT l.FK_series_ID series, l.year, d.mission, d.setno, d.spec, d.fshno, d.flen, d.fsex, d.fmat, d.fwt, d.age '||
+      'FROM gsmvdet_tmp d, gsmission_list l '||
+      'WHERE  d.mission = l.PK_mission '||
+      'AND (fshno IS NOT NULL AND (fwt IS NOT NULL OR fsex IS NOT NULL OR age IS NOT NULL)) AND clen = 1 ' ;
+
+     /* I := 0;
+      WHILE (I < length(sql_in)) LOOP
+        DBMS_OUTPUT.PUT_LINE (substr(sql_in,I, 80));
+        I := I + 80;
+      END LOOP; */
+    DBMS_SQL.PARSE(cursor_handle, sql_in      ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle, 'ANALYZE TABLE GSDDET_MV COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    gsmv_refresh.do_grants(User_list,'gsddet_mv|','select|');
+
+--    DBMS_SQL.PARSE(cursor_handle, 'GRANT SELECT ON GSDDET_MV TO mflib' ,DBMS_SQL.NATIVE);
+--	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+--
+--    DBMS_SQL.PARSE(cursor_handle, 'GRANT SELECT ON GSDDET_MV TO VDC' ,DBMS_SQL.NATIVE);
+--	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle, 'ALTER TABLE GSDDET_MV ADD CONSTRAINT gsddet_ind  PRIMARY KEY (series, year, mission, setno, spec, fshno, flen) '||
+                  'PCTFREE 0 ' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle, 'ANALYZE INDEX gsddet_ind COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle,
+      'CREATE INDEX gsddet_ind2  ON GSDDET_MV (mission, setno) PCTFREE 0 ' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle, 'ANALYZE INDEX gsddet_ind2 COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle,
+      'CREATE INDEX gsddet_ind3  ON GSDDET_MV (mission, setno, spec, age) PCTFREE 0 ' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle, 'ANALYZE INDEX gsddet_ind3 COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle, 'ALTER TABLE gsddet_mv ADD CONSTRAINT gsddet_fk1 FOREIGN KEY (series, year, mission, setno)  '||
+                  'REFERENCES gsdinf_mv(series, year, mission, setno) PCTFREE 0 ' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+/*
+    DBMS_SQL.PARSE(cursor_handle, 'GRANT SELECT ON gsddet_mv TO harrisle' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+*/
+
+    DBMS_SQL.CLOSE_CURSOR(cursor_handle);
+
+    UPDATE MV_Refresh_Log SET USER_ID = user_id_in, Last_Refresh = SYSDATE
+        WHERE PK_Table_name = 'GSDDET_MV' AND fk_system_id = 'MV';
+
+DBMS_OUTPUT.PUT_LINE (' updated Refresh Log Table ');
+
+
+do_sql_stmnt('comment on table gsddet_MV  is ''Specimen length, weight, sex, maturity and age by series, year, stratum, mission, set number'||
+                                               ' // Longeur, poids, sex, maturité et âge de spécimen  par serie, année, strate, mission et numéro de prise''');
+do_sql_stmnt('comment on column gsddet_MV.SERIES         IS ''survey series name'||
+                                                         ' // Identification de serie de reléve''');
+do_sql_stmnt('comment on column gsddet_MV.YEAR           IS ''Year of Survey'||
+                                                         ' // année de la Relevé''');
+do_sql_stmnt('comment on column gsddet_MV.MISSION        IS ''Mission/Cruise Id'||
+                                                         ' // Identification de coisière''');
+do_sql_stmnt('comment on column gsddet_MV.SETNO          IS ''Survey set number'||
+                                                         ' // Identification de traite de reléve''');
+do_sql_stmnt('comment on column gsddet_MV.SPEC           IS ''Research species code'||
+                                                         ' // code d&rsquo;espèce de recherche''');
+do_sql_stmnt('comment on column gsddet_MV.FSHNO         IS ''Identification number of specimen'||
+                                                         ' // Numero d&rsquo;identification du spécimen''');
+do_sql_stmnt('comment on column gsddet_MV.FLEN          IS ''Length of specimen'||
+                                                         ' // Longueur du spécimen''');
+do_sql_stmnt('comment on column gsddet_MV.FSEX          IS ''Sex of specimen'||
+                                                         ' // Sexe du spécimen''');
+do_sql_stmnt('comment on column gsddet_MV.FMAT          IS ''Maturity of specimen'||
+                                                         ' // Maturité  du spécimen''');
+do_sql_stmnt('comment on column gsddet_MV.FWT           IS ''Weightof specimen'||
+                                                         ' // Poids du spécimen''');
+do_sql_stmnt('comment on column gsddet_MV.AGE           IS ''Age of specimen'||
+                                                         ' // Âge du spécimen''');
+
+DBMS_OUTPUT.PUT_LINE (' Finished gsddet_mv ');
+Commit;
+IF Button_in != 'NON_WEB' THEN
+    gsmv_refresh.MV_refresh_form(User_Id_in);
+END IF;
+
+END;
+/* ****************** */
+
+PROCEDURE make_GSD1LF_mv(
+                Button_in   IN      varchar2,
+                User_Id_in  IN      varchar2)
+/*
+PROCEDURE make gsdlf mv
+
+Procedure Name:		make_GSD1LF_mv
+Author:				B. Branton
+Date Written:		2001/08/08
+Function:
+	This is one of a series of procedures used to refresh materialized views of
+	stratified groundfish survey data. These materialized views (intermediate tables)
+	allow for computationally intensive procedures to be run on a timed basis rather than on
+	demand.
+
+    This procedure compute the detailed length frequency based on 1cm intervals for all species.
+
+Modification History (as Date YYYY/MM/DD  initials - change description):
+	2001/08/08	rb 		initial test version
+	2001/08/17	pcb		converted from script to procedures in a package,
+	                    added header commentary
+	2001/11/	pcb		converted from script to procedures in a package,
+	                    added header commentary
+
+*/
+IS
+	i                   NUMBER :=1 ;
+	cursor_handle           INTEGER := DBMS_SQL.OPEN_CURSOR;
+	dbms_sql_feedback       INTEGER;
+	success                 BOOLEAN := FALSE;
+	sql_in                  VARCHAR2(2000);
+BEGIN
+
+--
+-- fish count at length by species, setno, mission, stratum, year and series
+--
+    FOR itest in (select * from user_catalog where table_name = 'GSD1LF_MV') LOOP
+        sql_in := 'DROP TABLE GSD1LF_mv';
+    	DBMS_SQL.PARSE(cursor_handle,sql_in,DBMS_SQL.NATIVE);
+    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+    END LOOP;
+
+    sql_in := 'CREATE TABLE GSD1LF_mv PCTFREE 0 UNRECOVERABLE AS '||
+      'SELECT l.FK_series_ID series, l.year, i.strat, i.mission, i.setno, d.spec, '||
+      'DECODE(lfsexed,''Y'',fsex,0) fsex, d.flen, '||
+--
+--  adjust count at length for subsampling
+--
+       'SUM(d.clen * DECODE(NVL(c.totwgt,0),0,1,DECODE(NVL(c.sampwgt,0),0,1,c.totwgt/c.sampwgt))) clen, '||
+--
+--  adjust count at length for subsampling and distance towed
+--
+  'SUM(d.clen * DECODE(NVL(c.totwgt,0),0,1,DECODE(NVL(c.sampwgt,0),0,1,c.totwgt/c.sampwgt))* 1.75/i.dist ) stdclen '||
+  'FROM gsmvlf_tmp d, gsmvcat_tmp c, gsmvinf_tmp i, gsmission_list l, gsspec s '||
+  'WHERE c.mission=i.mission '||
+  ' AND d.mission=i.mission '||
+  ' AND l.PK_mission=i.mission '||
+  ' AND c.setno=i.setno '||
+  ' AND d.setno=i.setno '||
+  ' AND s.spec=c.spec '||
+  ' AND c.spec=d.spec '||
+--  ' AND i.type=1 '|| -- accept all experiment types 2000/11/26
+  ' AND d.clen IS NOT NULL '||
+  ' AND d.flen IS NOT NULL '||
+  ' GROUP BY l.FK_series_ID, l.year, i.strat, i.mission, i.setno, d.spec,  '||
+  ' DECODE(lfsexed,''Y'',fsex ,0), d.flen ' ;
+/*
+      I := 0;
+      WHILE (I < length(sql_in)) LOOP
+        DBMS_OUTPUT.PUT_LINE (substr(sql_in,I, 80));
+        I := I + 80;
+      END LOOP;
+*/
+DBMS_SQL.PARSE(cursor_handle, sql_in
+      ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+DBMS_SQL.PARSE(cursor_handle,
+      'ANALYZE TABLE GSD1LF_mv COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+/* remove primary key for this version due to NULL values
+DBMS_SQL.PARSE(cursor_handle,
+      'ALTER TABLE GSD1LF_mv ADD CONSTRAINT GSD1LF_ind  PRIMARY KEY (series, year, mission, setno, spec, fsex, flen)'||
+	'PCTFREE 0 ' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+*/
+DBMS_SQL.PARSE(cursor_handle,
+      'CREATE INDEX GSD1LF_ind  ON GSD1LF_mv (series, year, mission, setno, spec, fsex, flen)  PCTFREE 0'
+              ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+DBMS_SQL.PARSE(cursor_handle,
+      'ANALYZE INDEX GSD1LF_ind COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle,
+      'CREATE INDEX GSD1LF_ind2  ON GSD1LF_mv (mission, setno)  PCTFREE 0 ' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle, 'ANALYZE INDEX GSD1LF_ind2 COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+DBMS_SQL.PARSE(cursor_handle,
+      'ALTER TABLE GSD1LF_mv ADD CONSTRAINT GSD1LF_fk1 FOREIGN KEY (series, year, mission, setno) '||
+	'  REFERENCES gsdinf_mv(series, year, mission, setno) PCTFREE 0 ' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    gsmv_refresh.do_grants(User_list,'gsd1lf_mv|','select|');
+
+--  DBMS_SQL.PARSE(cursor_handle, 'GRANT SELECT ON GSD1LF_mv TO mflib' ,DBMS_SQL.NATIVE);
+--  	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+--
+--  DBMS_SQL.PARSE(cursor_handle, 'GRANT SELECT ON GSD1LF_mv TO VDC' ,DBMS_SQL.NATIVE);
+--  	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+/*
+DBMS_SQL.PARSE(cursor_handle, 'GRANT SELECT ON GSD1LF_mv TO harrisle' ,DBMS_SQL.NATIVE);
+	 dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+*/
+
+	 DBMS_SQL.CLOSE_CURSOR(cursor_handle);
+
+UPDATE MV_Refresh_Log SET USER_ID = user_id_in, Last_Refresh = SYSDATE
+    WHERE PK_Table_name = 'GSD1LF_MV' AND fk_system_id = 'MV';
+
+do_sql_stmnt('comment on table GSD1LF_MV   is ''Total number at length (1 cm groups) of specie by  series, year, stratum, mission, set number and sex.'||
+                                               ' //Fréquence de longueur (groupe 1 cm) de chaque espèce par serie, année, strate, mission, numéro de prise et sexe''');
+do_sql_stmnt('comment on column GSD1LF_MV.SERIES        IS ''survey series name'||
+                                                            ' // Identification de serie de reléve''');
+do_sql_stmnt('comment on column GSD1LF_MV.YEAR          IS ''Year of Survey'||
+                                                            ' // année de la Relevé''');
+do_sql_stmnt('comment on column GSD1LF_MV.STRAT         IS ''survey stratum code'||
+                                                            ' // code de strate''');
+do_sql_stmnt('comment on column GSD1LF_MV.MISSION       IS ''Mission/Cruise Id'||
+                                                            ' // Identification de coisière''');
+do_sql_stmnt('comment on column GSD1LF_MV.SETNO         IS ''Survey set number'||
+                                                            ' // Identification de traite de reléve''');
+do_sql_stmnt('comment on column GSD1LF_MV.SPEC          IS ''Research Species code'||
+                                                            ' // code d&rsquo;espèce de recherche''');
+do_sql_stmnt('comment on column GSD1LF_MV.FSEX          IS ''sex code'||
+                                                            ' // code de sexe''');
+do_sql_stmnt('comment on column GSD1LF_MV.FLEN          IS ''Fish length (cm)'||
+                                                            ' // Longeuer de poisson (cm)''');
+do_sql_stmnt('comment on column GSD1LF_MV.clen          IS ''Count at length adjusted for subsampling'||
+                                                            ' // Nombre de cette longeuer rajuste pour sous-échantillonnage''');
+do_sql_stmnt('comment on column GSD1LF_MV.stdclen       IS ''Count at length adjusted for subsampling and standardized for distance towed'||
+                                                            ' // Nombre de cette longeuer rajuste pour sous-échantillonnage et standardisé pour la distance''');
+
+Commit;
+IF Button_in != 'NON_WEB' THEN
+    gsmv_refresh.MV_refresh_form(User_Id_in);
+END IF;
+
+END;
+
+
+PROCEDURE make_gsd3lf_mv(
+                Button_in   IN      varchar2,
+                User_Id_in  IN      varchar2)
+/*
+PROCEDURE make gsd3lf mv
+
+Procedure Name:		make_gsd3lf_mv
+Author:				B. Branton
+Date Written:		2001/08/08
+Function:
+	This is one of a series of procedures used to refresh materialized views of
+	stratified groundfish survey data. These materialized views (intermediate tables)
+	allow for computationally intensive procedures to be run on a timed basis rather than on
+	demand.
+
+    This procedure prepares a detailed length frequency table based on 1, 2 or 3 cm intervals
+    depending on the species being processed. The results should be comparable to data
+    processed using this method rather than the current method of using 1 cm intervals for
+    all species.
+
+Modification History (as Date YYYY/MM/DD  initials - change description):
+	2001/08/08	rb 		initial test version
+	2001/08/17	pcb		converted from script to procedures in a package,
+	                    added header commentary
+
+
+*/
+IS
+	i                   NUMBER :=1 ;
+	cursor_handle           INTEGER := DBMS_SQL.OPEN_CURSOR;
+	dbms_sql_feedback       INTEGER;
+	success                 BOOLEAN := FALSE;
+	sql_in                  VARCHAR2(2000);
+BEGIN
+
+--
+-- fish count at length by species, setno, mission, stratum, year and series
+--
+    FOR itest in (select * from user_catalog where table_name = 'GSD3LF_MV') LOOP
+        sql_in := 'DROP TABLE gsd3lf_mv';
+    	DBMS_SQL.PARSE(cursor_handle,sql_in,DBMS_SQL.NATIVE);
+    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+    END LOOP;
+
+    sql_in := 'CREATE TABLE gsd3lf_mv PCTFREE 0 UNRECOVERABLE AS '||
+      'SELECT l.FK_series_ID series, l.year, i.strat, i.mission, i.setno, d.spec, '||
+      'DECODE(lfsexed,''Y'',fsex,0) fsex, '||
+      'DECODE(s.lgrp,1,d.flen,2,.5+FLOOR(d.flen/2)*2,3, 1+FLOOR(d.flen/3)*3 ) flen, '||
+--
+--  adjust count at length for subsampling
+--
+       'SUM(d.clen * DECODE(NVL(c.totwgt,0),0,1,DECODE(NVL(c.sampwgt,0),0,1,c.totwgt/c.sampwgt))) clen, '||
+--
+--  adjust count at length for subsampling and distance towed
+--
+      'SUM(d.clen * DECODE(NVL(c.totwgt,0),0,1,DECODE(NVL(c.sampwgt,0),0,1,c.totwgt/c.sampwgt))* 1.75/i.dist ) stdclen '||
+  'FROM gsmvlf_tmp d, gsmvcat_tmp c, gsmvinf_tmp i, gsmission_list l, gsspec s '||
+  'WHERE c.mission=i.mission '||
+  ' AND d.mission=i.mission '||
+  ' AND l.PK_mission=i.mission '||
+  ' AND c.setno=i.setno '||
+  ' AND d.setno=i.setno '||
+  ' AND s.spec=c.spec '||
+  ' AND c.spec=d.spec '||
+--  ' AND i.type=1 '|| -- accept all experiment types 2000/11/26
+  ' AND d.clen IS NOT NULL '||
+  ' AND d.flen IS NOT NULL '||
+  ' GROUP BY l.FK_series_ID, l.year, i.strat, i.mission, i.setno, d.spec,  '||
+  ' DECODE(lfsexed,''Y'',fsex ,0), '||
+  ' DECODE(s.lgrp,1,flen,2,.5+FLOOR(d.flen/2)*2,3,1+FLOOR(d.flen/3)*3)';
+/*
+      I := 0;
+      WHILE (I < length(sql_in)) LOOP
+        DBMS_OUTPUT.PUT_LINE (substr(sql_in,I, 80));
+        I := I + 80;
+      END LOOP;
+*/
+DBMS_SQL.PARSE(cursor_handle, sql_in
+      ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+DBMS_SQL.PARSE(cursor_handle,
+      'ANALYZE TABLE gsd3lf_mv COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+/* fsex NUll values use index rather than primary key
+DBMS_SQL.PARSE(cursor_handle,
+      'ALTER TABLE gsd3lf_mv ADD CONSTRAINT gsd3lf_ind  PRIMARY KEY (series, year, mission, setno, spec, fsex, flen)'||
+	'PCTFREE 0 ' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+*/
+
+DBMS_SQL.PARSE(cursor_handle,
+      'CREATE INDEX gsd3lf_ind  ON gsd3lf_mv (series, year, mission, setno, spec, fsex, flen)  PCTFREE 0 ' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+DBMS_SQL.PARSE(cursor_handle,
+      'ANALYZE INDEX gsd3lf_ind COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle,
+      'CREATE INDEX gsd3lf_ind2  ON gsd3lf_mv (mission, setno)  PCTFREE 0 ' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle, 'ANALYZE INDEX gsd3lf_ind2 COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+DBMS_SQL.PARSE(cursor_handle,
+      'ALTER TABLE gsd3lf_mv ADD CONSTRAINT gsd3lf_fk1 FOREIGN KEY (series, year, mission, setno) '||
+	'  REFERENCES gsdinf_mv(series, year, mission, setno) PCTFREE 0 ' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    gsmv_refresh.do_grants(User_list,'gsd3lf_mv|','select|');
+
+--    DBMS_SQL.PARSE(cursor_handle, 'GRANT SELECT ON gsd3lf_mv TO mflib' ,DBMS_SQL.NATIVE);
+--    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+--
+--    DBMS_SQL.PARSE(cursor_handle, 'GRANT SELECT ON gsd3lf_mv TO VDC' ,DBMS_SQL.NATIVE);
+--    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+/*
+DBMS_SQL.PARSE(cursor_handle, 'GRANT SELECT ON gsd3lf_mv TO harrisle' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+*/
+
+	DBMS_SQL.CLOSE_CURSOR(cursor_handle);
+
+UPDATE MV_Refresh_Log SET USER_ID = user_id_in, Last_Refresh = SYSDATE
+    WHERE PK_Table_name = 'GSD3LF_MV' AND fk_system_id = 'MV';
+
+do_sql_stmnt('comment on table gsd3lf_MV   is ''Total number at length (1,2 or 3 cm groups depending on species) by series, year, stratum, mission, set number and sex'||
+                                               ' // Fréquence de longueur (groupe 1, 2 ou 3 cm celon l&rsquo;espèce)  par serie, année, strate, mission, numéro de prise et sexe''');
+do_sql_stmnt('comment on column gsd3lf_MV.SERIES        IS ''survey series name'||
+                                                            ' // Identification de serie de reléve''');
+do_sql_stmnt('comment on column gsd3lf_MV.YEAR          IS ''Year of Survey'||
+                                                            ' // année de la Relevé''');
+do_sql_stmnt('comment on column gsd3lf_MV.STRAT         IS ''survey stratum code'||
+                                                            ' // code de strate''');
+do_sql_stmnt('comment on column gsd3lf_MV.MISSION       IS ''Mission/Cruise Id'||
+                                                            ' // Identification de coisière''');
+do_sql_stmnt('comment on column gsd3lf_MV.SETNO         IS ''Survey set number'||
+                                                            ' // Identification de traite de reléve''');
+do_sql_stmnt('comment on column gsd3lf_MV.SPEC          IS ''Research Species code'||
+                                                            ' // code d&rsquo;espèce de recherche''');
+do_sql_stmnt('comment on column gsd3lf_MV.FSEX          IS ''sex code'||
+                                                            ' // code de sexe''');
+do_sql_stmnt('comment on column gsd3lf_MV.FLEN          IS ''Fish length (cm)'||
+                                                            ' // Longeuer de poisson (cm)''');
+do_sql_stmnt('comment on column gsd3lf_MV.clen          IS ''Count at length adjusted for subsampling'||
+                                                            ' // Nombre de cette longeuer rajuste pour sous-échantillonnage''');
+do_sql_stmnt('comment on column gsd3lf_MV.stdclen       IS ''Count at length adjusted for subsampling and standardized for distance towed'||
+                                                            ' // Nombre de cette longeuer rajuste pour sous-échantillonnage et standardisé pour la distance''');
+
+Commit;
+IF Button_in != 'NON_WEB' THEN
+    gsmv_refresh.MV_refresh_form(User_Id_in);
+END IF;
+
+END;
+
+PROCEDURE make_gsd5lf_mv(
+                Button_in   IN      varchar2,
+                User_Id_in  IN      varchar2)
+/*
+PROCEDURE make gsd5lf_mv
+
+Procedure Name:		make_gsd5lf_mv
+Author:				B. Branton
+Date Written:		2001/08/08
+Function:
+	This is one of a series of procedures used to refresh materialized views of
+	stratified groundfish survey data. These materialized views (intermediate tables)
+	allow for computationally intensive procedures to be run on a timed basis rather than on
+	demand.
+
+    This procedure prepares a detailed length frequency table based on 5 cm intervals
+    depending on the species being processed. The results should be comparable to data
+    processed using this method rather than the current method of using 1 cm intervals for
+    all species.
+
+
+Modification History (as Date YYYY/MM/DD  initials - change description):
+	2001/08/08	rb 		initial test version
+	2001/08/17	pcb		converted from script to procedures in a package,
+	                    added header commentary
+
+
+*/
+IS
+	i                   NUMBER :=1 ;
+	cursor_handle           INTEGER := DBMS_SQL.OPEN_CURSOR;
+	dbms_sql_feedback       INTEGER;
+	success                 BOOLEAN := FALSE;
+	sql_in                  VARCHAR2(2000);
+BEGIN
+
+--
+-- fish count at 5 cm length intervals by species, setno, mission, stratum, year and series
+--
+    FOR itest in (select * from user_catalog where table_name = 'GSD5LF_MV') LOOP
+        sql_in := 'DROP TABLE gsd5lf_mv';
+    	DBMS_SQL.PARSE(cursor_handle,sql_in,DBMS_SQL.NATIVE);
+    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+    END LOOP;
+
+    sql_in := 'CREATE TABLE gsd5lf_mv PCTFREE 0 UNRECOVERABLE AS '||
+      'SELECT l.FK_series_ID series, l.year, i.strat, i.mission, i.setno, d.spec, 5*ceil(flen/5)-2 flen, '||
+--
+--  adjust count at length for subsampling
+--
+      ' SUM(d.clen * DECODE(NVL(c.totwgt,0),0,1,DECODE(NVL(c.sampwgt,0),0,1,c.totwgt/c.sampwgt))) clen, '||
+--
+--  adjust count at length for subsampling and distance towed
+--
+      ' SUM(d.clen * DECODE(NVL(c.totwgt,0),0,1,DECODE(NVL(c.sampwgt,0),0,1,c.totwgt/c.sampwgt))* 1.75/i.dist ) stdclen '||
+  'FROM gsmvlf_tmp d, gsmvcat_tmp c, gsmvinf_tmp i, gsmission_list l '||
+  'WHERE c.mission=i.mission '||
+  ' AND d.mission=i.mission '||
+  ' AND l.PK_mission=i.mission '||
+  ' AND c.setno=i.setno '||
+  ' AND d.setno=i.setno '||
+  ' AND c.spec=d.spec '||
+  'GROUP BY l.FK_series_ID, l.year, i.strat, i.mission, i.setno, d.spec, 5*ceil(flen/5)-2' ;
+
+      I := 0;
+      WHILE (I < length(sql_in)) LOOP
+        DBMS_OUTPUT.PUT_LINE (substr(sql_in,I, 80));
+        I := I + 80;
+      END LOOP;
+
+DBMS_SQL.PARSE(cursor_handle, sql_in
+      ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+DBMS_SQL.PARSE(cursor_handle,
+      'ANALYZE TABLE gsd5lf_mv COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+DBMS_SQL.PARSE(cursor_handle,
+      'CREATE INDEX gsd5lf_ind ON '||
+	'gsd5lf_mv(series,year,strat,mission,setno,spec,flen,stdclen) '||
+	'PCTFREE 0 '||
+	'UNRECOVERABLE' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+DBMS_SQL.PARSE(cursor_handle,
+      'ANALYZE INDEX gsd5lf_ind COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle,
+      'CREATE INDEX gsd5lf_ind2  ON gsd5lf_mv (mission, setno)  PCTFREE 0 ' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle, 'ANALYZE INDEX gsd5lf_ind2 COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    gsmv_refresh.do_grants(User_list,'gsd5lf_mv|','select|');
+
+--    DBMS_SQL.PARSE(cursor_handle, 'GRANT SELECT ON gsd5lf_mv TO mflib' ,DBMS_SQL.NATIVE);
+--    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+--
+--    DBMS_SQL.PARSE(cursor_handle, 'GRANT SELECT ON gsd5lf_mv TO VDC' ,DBMS_SQL.NATIVE);
+--    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+/*
+DBMS_SQL.PARSE(cursor_handle, 'GRANT SELECT ON gsd5lf_mv TO harrisle' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+*/
+
+DBMS_SQL.CLOSE_CURSOR(cursor_handle);
+
+UPDATE MV_Refresh_Log SET USER_ID = user_id_in, Last_Refresh = SYSDATE
+    WHERE PK_Table_name = 'GSD5LF_MV' AND fk_system_id = 'MV';
+
+do_sql_stmnt('comment on table GSD5LF_MV   is ''Total number at length (5 cm groups) of specie by series, year, stratum, mission and  set number '||
+                                               ' // Fréquence de longueur (groupe 5 cm) de chaque espèce par serie, année, strate, mission et numéro de prise ''');
+do_sql_stmnt('comment on column GSD5LF_MV.SERIES        IS ''survey series name'||
+                                                             ' // Identification de serie de reléve''');
+do_sql_stmnt('comment on column GSD5LF_MV.YEAR          IS ''Year of Survey'||
+                                                             ' // année de la Relevé''');
+do_sql_stmnt('comment on column GSD5LF_MV.STRAT         IS ''survey stratum code'||
+                                                             ' // code de strate''');
+do_sql_stmnt('comment on column GSD5LF_MV.MISSION       IS ''Mission/Cruise Id'||
+                                                             ' // Identification de coisière''');
+do_sql_stmnt('comment on column GSD5LF_MV.SETNO         IS ''Survey set number'||
+                                                             ' // Identification de traite de reléve''');
+do_sql_stmnt('comment on column GSD5LF_MV.SPEC          IS ''Research Species code'||
+                                                             ' // code d&rsquo;espèce de recherche''');
+do_sql_stmnt('comment on column GSD5LF_MV.FLEN          IS ''Fish length (cm)'||
+                                                             ' // Longeuer de poisson (cm)''');
+do_sql_stmnt('comment on column GSD5LF_MV.clen          IS ''Count at length adjusted for subsampling'||
+                                                             ' // Nombre de cette longeuer rajuste pour sous-échantillonnage''');
+do_sql_stmnt('comment on column GSD5LF_MV.stdclen       IS ''Count at length adjusted for subsampling and standardized for distance'||
+                                                             ' // Nombre de cette longeuer rajuste pour sous-échantillonnage et standardisé pour la distance''');
+
+Commit;
+IF Button_in != 'NON_WEB' THEN
+    gsmv_refresh.MV_refresh_form(User_Id_in);
+END IF;
+
+END;
+
+PROCEDURE make_GSS1LF_MV(
+                Button_in   IN      varchar2,
+                User_Id_in  IN      varchar2)
+/*
+PROCEDURE make gsslf mv
+
+Procedure Name:		make_GSS1LF_MV
+Author:				B. Branton
+Date Written:		2001/08/08
+Function:
+	This is one of a series of procedures used to refresh materialized views of
+	stratified groundfish survey data. These materialized views (intermediate tables)
+	allow for computationally intensive procedures to be run on a timed basis rather than on
+	demand.
+
+    This form is used to start the administration or editing process.
+    It displays a set of options which will subsequently allow the user.
+
+Modification History (as Date YYYY/MM/DD  initials - change description):
+	2001/08/08	rb 		initial test version
+	2001/08/17	pcb		converted from script to procedures in a package,
+	                    added header commentary
+
+
+*/
+IS
+	i                   NUMBER :=1 ;
+	cursor_handle           INTEGER := DBMS_SQL.OPEN_CURSOR;
+	dbms_sql_feedback       INTEGER;
+	success                 BOOLEAN := FALSE;
+	sql_in                  VARCHAR2(2000);
+BEGIN
+
+--
+-- average number and variamce at length by sex, species, strat, year, series
+--   calculator methods are used such that zeroes can be ignored
+--   variance  is not calculated for stratum containing one tow
+--
+/* this code should only be activated when gss1lf_mv becomes the standard
+    FOR itest in (select constraint_name from user_constraints where constraint_name = 'GSSALK_FK1') LOOP
+        sql_in := 'ALTER TABLE gssalk_mv DROP CONSTRAINT gssalk_fk1';
+    	DBMS_SQL.PARSE(cursor_handle,sql_in,DBMS_SQL.NATIVE);
+    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+    	DBMS_OUTPUT.PUT_LINE (' disabled  gssalk_fk1 ');
+    END LOOP;
+*/
+    FOR itest in (select * from user_catalog where table_name = 'GSS1LF_MV') LOOP
+        sql_in := 'DROP TABLE GSS1LF_MV';
+    	DBMS_SQL.PARSE(cursor_handle,sql_in,DBMS_SQL.NATIVE);
+    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+    END LOOP;
+
+    sql_in := 'CREATE TABLE GSS1LF_MV PCTFREE 0 UNRECOVERABLE AS '||
+      'SELECT tw.series, tw.year, tw.strat, tw.ntows, lf.spec, lf.fsex, lf.flen, lf.sumraw/tw.ntows avgclen, '||
+      'TO_NUMBER(DECODE(tw.ntows,1,NULL,(lf.ssqraw-lf.sqsraw/tw.ntows)/(tw.ntows-1))) varclen, '||
+      'sumadj/tw.ntows avgstdclen, '||
+      'TO_NUMBER(DECODE(tw.ntows,1,NULL,(lf.ssqadj-lf.sqsadj/tw.ntows)/(tw.ntows-1))) varstdclen '||
+      ' FROM '||
+      '(SELECT l.series, l.year, l.strat, l.spec, l.fsex, l.flen, '||
+      ' SUM(clen) sumraw, SUM(POWER(clen,2)) ssqraw, POWER(SUM(clen),2) sqsraw, '||
+      ' SUM(stdclen) sumadj, SUM(POWER(stdclen,2)) ssqadj, POWER(SUM(stdclen),2) sqsadj '||
+      ' FROM GSD1LF_mv l, gsdinf_mv i '|| -- raw and adjusted counts at length by sex, species, setno and mission
+      ' WHERE l.mission = i.mission AND l.setno = i.setno and i.xtype = 1 '||
+          'GROUP BY l.series, l.year, l.strat, spec, fsex, flen) lf, '||
+      'gssinf_mv tw '|| --  number of tows by stratum, year and series
+   'WHERE lf.series=tw.series '||
+      'AND lf.year=tw.year '||
+      'AND lf.strat=tw.strat';
+
+      I := 0;
+      WHILE (I < length(sql_in)) LOOP
+        DBMS_OUTPUT.PUT_LINE (substr(sql_in,I, 80));
+        I := I + 80;
+      END LOOP;
+
+    DBMS_SQL.PARSE(cursor_handle, sql_in   ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    gsmv_refresh.do_grants(User_list,'gss1lf_mv|','select|');
+
+--    DBMS_SQL.PARSE(cursor_handle, 'GRANT SELECT ON GSS1LF_MV TO mflib' ,DBMS_SQL.NATIVE);
+--	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+--
+--    DBMS_SQL.PARSE(cursor_handle,  'GRANT SELECT ON GSS1LF_MV TO VDC' ,DBMS_SQL.NATIVE);
+--	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle, 'ANALYZE TABLE GSS1LF_MV COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+/* changed to index due to NULL values in fsex
+    DBMS_SQL.PARSE(cursor_handle,
+        'ALTER TABLE GSS1LF_MV ADD CONSTRAINT gss1lf_ind  PRIMARY KEY (series,year,strat,spec,fsex, flen)'||
+        ' PCTFREE 0 '  ,DBMS_SQL.NATIVE);
+    dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+*/
+    DBMS_SQL.PARSE(cursor_handle,
+        'create index gss1lf_ind on gss1lf_mv (series,year,strat,spec,fsex, flen)  PCTFREE 0' ,DBMS_SQL.NATIVE);
+    dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+
+    DBMS_SQL.PARSE(cursor_handle,  'ANALYZE INDEX gss1lf_ind COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+    dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle,
+        'ALTER TABLE GSS1LF_MV ADD CONSTRAINT gss1lf_fk1 FOREIGN KEY (series,year,strat) '||
+        'REFERENCES gssinf_mv(series,year,strat) PCTFREE 0 '  ,DBMS_SQL.NATIVE);
+    dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle,
+        'create index gss1lf_i2 on gss1lf_mv (spec) PCTFREE 0' ,DBMS_SQL.NATIVE);
+    dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle,  'ANALYZE INDEX gss1lf_i2 COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+    dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+/* this should only be activated when gss1lf_mv becomes the standard
+   FOR itest in (select * from user_catalog where table_name = 'GSSALK_MV') LOOP
+        DBMS_SQL.PARSE(cursor_handle,
+            'ALTER TABLE gssalk_mv ADD CONSTRAINT gssalk_fk1 FOREIGN KEY(series,year,strat,spec,fsex,flen)'||
+        	'  REFERENCES GSS1LF_MV(series,year,strat,spec,fsex,flen) PCTFREE 0 '  ,DBMS_SQL.NATIVE);
+        dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+  END LOOP;
+*/
+
+/*
+DBMS_SQL.PARSE(cursor_handle,  'GRANT SELECT ON GSS1LF_MV TO harrisle' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+*/
+
+DBMS_SQL.CLOSE_CURSOR(cursor_handle);
+
+UPDATE MV_Refresh_Log SET USER_ID = user_id_in, Last_Refresh = SYSDATE
+    WHERE PK_Table_name = 'GSS1LF_MV' AND fk_system_id = 'MV';
+
+do_sql_stmnt('comment on table GSS1LF_MV   is ''Average number of species at length (1 cm groups) by series, year and stratum'||
+                                               ' // Fréquence moyenne à longueur (groupe 1 cm) de chaque espèce par serie, année et strate''');
+do_sql_stmnt('comment on column GSS1LF_MV.SERIES         IS ''survey series name'||
+                                                             ' // Identification de serie de reléve''');
+do_sql_stmnt('comment on column GSS1LF_MV.YEAR           IS ''year of survey'||
+                                                             ' // année de la Relevé''');
+do_sql_stmnt('comment on column GSS1LF_MV.STRAT          IS ''survey stratum code'||
+                                                             ' // code de strate''');
+do_sql_stmnt('comment on column GSS1LF_MV.NTOWS          IS ''Number of tows in stratum'||
+                                                             ' // nombre de traites dans la strate''');
+do_sql_stmnt('comment on column GSS1LF_MV.SPEC           IS ''Research species code'||
+                                                             ' // code d&rsquo;espèce de recherche''');
+do_sql_stmnt('comment on column GSS1LF_MV.FSEX           IS ''sex code'||
+                                                             ' // code de sexe''');
+do_sql_stmnt('comment on column GSS1LF_MV.FLEN           IS ''Fish length (cm)'||
+                                                             ' // Longeuer de poisson (cm)''');
+do_sql_stmnt('comment on column GSS1LF_MV.AVGclen        IS ''Average count at length adjusted for subsampling'||
+                                                             ' // moyenne de nombre de cette longeuer rajuste pour sous-échantillonnage''');
+do_sql_stmnt('comment on column GSS1LF_MV.VARclen        IS ''Variance of count at length adjusted for subsampling'||
+                                                             ' // Variance de nombre de cette longeuer rajuste pour sous-échantillonnage''');
+do_sql_stmnt('comment on column GSS1LF_MV.AVGstdclen     IS ''Average of count at length adjusted for subsampling and standardized for distnce towed'||
+                                                             ' // moyenne de nombre de cette longeuer rajuste pour sous-échantillonnage et standardisé pour la distance''');
+do_sql_stmnt('comment on column GSS1LF_MV.VARstdclen     IS ''Variance of count at length adjusted for subsampling and standardized for distnce towed'||
+                                                             ' // Variance de nombre de cette longeuer rajuste pour sous-échantillonnage et standardisé pour la distance''');
+
+Commit;
+IF Button_in != 'NON_WEB' THEN
+    gsmv_refresh.MV_refresh_form(User_Id_in);
+END IF;
+END;
+
+/*  *** gsslf3_mv  */
+
+
+PROCEDURE make_gss3lf_mv(
+                Button_in   IN      varchar2,
+                User_Id_in  IN      varchar2)
+/*
+PROCEDURE make gss3lf mv
+
+Procedure Name:		make_gss3lf_mv
+Author:				B. Branton
+Date Written:		2001/08/08
+Function:
+	This is one of a series of procedures used to refresh materialized views of
+	stratified groundfish survey data. These materialized views (intermediate tables)
+	allow for computationally intensive procedures to be run on a timed basis rather than on
+	demand.
+
+    This procedure prepares a length frequency table based on the the old size classed
+    length frequency rules. These rules specify 1,2 or 3 cm intervals depending on the species.
+    Newer data use 1cm intervals for all species.
+
+Modification History (as Date YYYY/MM/DD  initials - change description):
+	2001/08/08	rb 		initial test version
+	2001/08/17	pcb		converted from script to procedures in a package,
+	                    added header commentary
+
+
+*/
+IS
+	i                   NUMBER :=1 ;
+	cursor_handle           INTEGER := DBMS_SQL.OPEN_CURSOR;
+	dbms_sql_feedback       INTEGER;
+	success                 BOOLEAN := FALSE;
+	sql_in                  VARCHAR2(2000);
+BEGIN
+
+--
+-- average number and variamce at length by sex, species, strat, year, series
+--   calculator methods are used such that zeroes can be ignored
+--   variance  is not calculated for stratum containing one tow
+--
+/* note that this is the standard deactivate when gss1lf_mv becomes standard */
+    FOR itest in (select constraint_name from user_constraints where constraint_name = 'GSSALK_FK1') LOOP
+        sql_in := 'ALTER TABLE gssalk_mv DROP CONSTRAINT gssalk_fk1';
+    	DBMS_SQL.PARSE(cursor_handle,sql_in,DBMS_SQL.NATIVE);
+    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+    	DBMS_OUTPUT.PUT_LINE (' disabled  gssalk_fk1 ');
+    END LOOP;
+
+    FOR itest in (select * from user_catalog where table_name = 'GSS3LF_MV') LOOP
+        sql_in := 'DROP TABLE gss3lf_mv';
+    	DBMS_SQL.PARSE(cursor_handle,sql_in,DBMS_SQL.NATIVE);
+    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+    END LOOP;
+
+    sql_in := 'CREATE TABLE gss3lf_mv PCTFREE 0 UNRECOVERABLE AS '||
+      'SELECT tw.series, tw.year, tw.strat, tw.ntows, lf.spec, lf.fsex, lf.flen, lf.sumraw/tw.ntows avgclen, '||
+      'TO_NUMBER(DECODE(tw.ntows,1,NULL,(lf.ssqraw-lf.sqsraw/tw.ntows)/(tw.ntows-1))) varclen, '||
+      'sumadj/tw.ntows avgstdclen, '||
+      'TO_NUMBER(DECODE(tw.ntows,1,NULL,(lf.ssqadj-lf.sqsadj/tw.ntows)/(tw.ntows-1))) varstdclen '||
+      ' FROM '||
+      '(SELECT l.series, l.year, l.strat, spec, fsex, flen, '||
+      ' SUM(clen) sumraw, SUM(POWER(clen,2)) ssqraw, POWER(SUM(clen),2) sqsraw, '||
+      ' SUM(stdclen) sumadj, SUM(POWER(stdclen,2)) ssqadj, POWER(SUM(stdclen),2) sqsadj '||
+      ' FROM gsd3lf_mv l, gsdinf_mv i '|| -- raw and adjusted counts at length by sex, species, setno and mission
+      ' WHERE l.mission = i.mission AND l.setno = i.setno and i.xtype = 1 '||
+          'GROUP BY l.series, l.year, l.strat, spec, fsex, flen) lf, '||
+      'gssinf_mv tw '|| --  number of tows by stratum, year and series
+   'WHERE lf.series=tw.series '||
+      'AND lf.year=tw.year '||
+      'AND lf.strat=tw.strat';
+
+      I := 0;
+      WHILE (I < length(sql_in)) LOOP
+        DBMS_OUTPUT.PUT_LINE (substr(sql_in,I, 80));
+        I := I + 80;
+      END LOOP;
+
+    DBMS_SQL.PARSE(cursor_handle, sql_in   ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    gsmv_refresh.do_grants(User_list,'gss3lf_mv|','select|');
+
+--    DBMS_SQL.PARSE(cursor_handle,  'GRANT SELECT ON gss3lf_mv TO mflib' ,DBMS_SQL.NATIVE);
+--	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+--
+--    DBMS_SQL.PARSE(cursor_handle,  'GRANT SELECT ON gss3lf_mv TO VDC' ,DBMS_SQL.NATIVE);
+--	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle, 'ANALYZE TABLE gss3lf_mv COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+/* change from primary to index due to NULL values in fsex
+    DBMS_SQL.PARSE(cursor_handle,
+        'ALTER TABLE gss3lf_mv ADD CONSTRAINT gss3lf_ind  PRIMARY KEY (series,year,strat,spec,fsex, flen)'||
+        ' PCTFREE 0 '  ,DBMS_SQL.NATIVE);
+    dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+*/
+      DBMS_SQL.PARSE(cursor_handle,
+      'CREATE INDEX gss3lf_ind ON gss3lf_mv (series,year,strat,spec,fsex, flen)  PCTFREE 0' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+
+    DBMS_SQL.PARSE(cursor_handle,  'ANALYZE INDEX gss3lf_ind COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+    dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle,
+        'ALTER TABLE gss3lf_mv ADD CONSTRAINT gss3lf_fk1 FOREIGN KEY (series,year,strat) '||
+        'REFERENCES gssinf_mv(series,year,strat) PCTFREE 0 '  ,DBMS_SQL.NATIVE);
+    dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+/*
+   this really should only be done after gssalk_mv has been recreated
+   FOR itest in (select * from user_catalog where table_name = 'GSSALK_MV') LOOP
+        DBMS_SQL.PARSE(cursor_handle,
+            'ALTER TABLE gss3alk_mv ADD CONSTRAINT gss3alk_fk1 FOREIGN KEY(series,year,strat,spec,fsex,flen)'||
+        	'  REFERENCES gss3lf_mv(series,year,strat,spec,fsex,flen) PCTFREE 0 '  ,DBMS_SQL.NATIVE);
+        dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+  END LOOP;
+*/
+/*
+DBMS_SQL.PARSE(cursor_handle,  'GRANT SELECT ON gss3lf_mv TO harrisle' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+*/
+
+DBMS_SQL.CLOSE_CURSOR(cursor_handle);
+
+UPDATE MV_Refresh_Log SET USER_ID = user_id_in, Last_Refresh = SYSDATE
+    WHERE PK_Table_name = 'GSS3LF_MV' AND fk_system_id = 'MV';
+
+do_sql_stmnt('comment on table gss3lf_MV   is ''Average number of species at length (1,2 or 3 cm groups depending on species) by series, year and stratum'||
+                                               ' // Fréquence moyenne à longueur (groupe 1, 2 ou 3 cm celon l&rsquo;espèce) de chaque espèce par serie, année et strate''');
+do_sql_stmnt('comment on column gss3lf_MV.SERIES         IS ''survey series name'||
+                                                             ' // Identification de serie de reléve''');
+do_sql_stmnt('comment on column gss3lf_MV.YEAR           IS ''year of survey'||
+                                                             ' // année de la Relevé''');
+do_sql_stmnt('comment on column gss3lf_MV.STRAT          IS ''survey stratum code'||
+                                                             ' // code de strate''');
+do_sql_stmnt('comment on column gss3lf_MV.NTOWS          IS ''Number of tows in stratum'||
+                                                             ' // nombre de traites dans la strate''');
+do_sql_stmnt('comment on column gss3lf_MV.SPEC           IS ''Research species code'||
+                                                             ' // code d&rsquo;espèce de recherche''');
+do_sql_stmnt('comment on column gss3lf_MV.FSEX           IS ''sex code'||
+                                                             ' // code de sexe''');
+do_sql_stmnt('comment on column gss3lf_MV.FLEN           IS ''Fish length (cm)'||
+                                                             ' // Longeuer de poisson (cm)''');
+do_sql_stmnt('comment on column gss3lf_MV.AVGclen        IS ''Average count at length adjusted for subsampling'||
+                                                             ' // moyenne de nombre de cette longeuer rajuste pour sous-échantillonnage''');
+do_sql_stmnt('comment on column gss3lf_MV.VARclen        IS ''Variance of count at length adjusted for subsampling'||
+                                                             ' // Variance de nombre de cette longeuer rajuste pour sous-échantillonnage''');
+do_sql_stmnt('comment on column gss3lf_MV.AVGstdclen     IS ''Average of count at length adjusted for subsampling and standardized for distnce towed'||
+                                                             ' // moyenne de nombre de cette longeuer rajuste pour sous-échantillonnage et standardisé pour la distance''');
+do_sql_stmnt('comment on column gss3lf_MV.VARstdclen     IS ''Variance of count at length adjusted for subsampling and standardized for distnce towed'||
+                                                             ' // Variance de nombre de cette longeuer rajuste pour sous-échantillonnage et standardisé pour la distance''');
+
+Commit;
+IF Button_in != 'NON_WEB' THEN
+    gsmv_refresh.MV_refresh_form(User_Id_in);
+END IF;
+END;
+
+
+PROCEDURE make_gss5lf_mv(
+                Button_in   IN      varchar2,
+                User_Id_in  IN      varchar2)
+/*
+PROCEDURE make gss5lf mv
+
+Procedure Name:		make_gss5lf_mv
+Author:				B. Branton
+Date Written:		2001/08/08
+Function:
+	This is one of a series of procedures used to refresh materialized views of
+	stratified groundfish survey data. These materialized views (intermediate tables)
+	allow for computationally intensive procedures to be run on a timed basis rather than on
+	demand.
+
+    This form is used to start the administration or editing process.
+    It displays a set of options which will subsequently allow the user.
+
+Modification History (as Date YYYY/MM/DD  initials - change description):
+	2001/08/08	rb 		initial test version
+	2001/08/17	pcb		converted from script to procedures in a package,
+	                    added header commentary
+
+
+*/
+IS
+	i                   NUMBER :=1 ;
+	cursor_handle           INTEGER := DBMS_SQL.OPEN_CURSOR;
+	dbms_sql_feedback       INTEGER;
+	success                 BOOLEAN := FALSE;
+	sql_in                  VARCHAR2(2000);
+BEGIN
+
+--
+-- as above but at 5 cm length
+--
+
+    FOR itest in (select * from user_catalog where table_name = 'GSS5LF_MV') LOOP
+        sql_in := 'DROP TABLE gss5lf_mv';
+    	DBMS_SQL.PARSE(cursor_handle,sql_in,DBMS_SQL.NATIVE);
+    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+    END LOOP;
+
+    sql_in := 'CREATE TABLE gss5lf_mv PCTFREE 0 UNRECOVERABLE AS '||
+      'SELECT tw.series, tw.year, tw.strat, tw.ntows ntows, lf.spec, lf.flen, lf.sumraw/tw.ntows avgclen, '||
+      'TO_NUMBER(DECODE(tw.ntows,1,NULL,(lf.ssqraw-lf.sqsraw/tw.ntows)/(tw.ntows-1))) varclen, '||
+      'sumadj/tw.ntows avgstdclen, '||
+      'TO_NUMBER(DECODE(tw.ntows,1,NULL,(lf.ssqadj-lf.sqsadj/tw.ntows)/(tw.ntows-1))) varstdclen '||
+      'FROM (SELECT l.series, l.year, l.strat, l.spec, l.flen, '||
+      'SUM(clen) sumraw,  SUM(POWER(clen,2)) ssqraw, POWER(SUM(clen),2) sqsraw, '||
+      'SUM(stdclen) sumadj,  SUM(POWER(stdclen,2)) ssqadj, POWER(SUM(stdclen),2) sqsadj  '||
+      'FROM Gsd5Lf_Mv l, gsdinf_mv i '|| -- raw and adjusted counts at length by sex, species, setno and mission
+      ' WHERE l.mission = i.mission AND l.setno = i.setno and i.xtype = 1 '||
+          'GROUP BY l.series, l.year, l.strat, l.spec, l.flen) lf, '||
+      'gssinf_mv tw '||  --  number of tows by stratum, year and series
+      'WHERE lf.series=tw.series '||
+      'AND lf.year=tw.year '||
+      'AND lf.strat=tw.strat';
+      I := 0;
+      WHILE (I < length(sql_in)) LOOP
+        DBMS_OUTPUT.PUT_LINE (substr(sql_in,I, 80));
+        I := I + 80;
+      END LOOP;
+
+DBMS_SQL.PARSE(cursor_handle, sql_in
+      ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+DBMS_OUTPUT.PUT_LINE (' created table gss5lf_mv ');
+
+DBMS_SQL.PARSE(cursor_handle,
+      'ANALYZE TABLE gss5lf_mv COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+DBMS_SQL.PARSE(cursor_handle,
+    'CREATE INDEX gss5lf_ind ON gss5lf_mv(series,year,strat,spec) '||
+	'PCTFREE 0  UNRECOVERABLE' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+DBMS_OUTPUT.PUT_LINE (' created index gss5lf_ind ');
+
+DBMS_SQL.PARSE(cursor_handle,
+      'ANALYZE INDEX gss5lf_ind COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    gsmv_refresh.do_grants(User_list,'gss5lf_mv|','select|');
+
+--    DBMS_SQL.PARSE(cursor_handle,  'GRANT SELECT ON gss5lf_mv TO mflib' ,DBMS_SQL.NATIVE);
+--    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+--
+--    DBMS_SQL.PARSE(cursor_handle,  'GRANT SELECT ON gss5lf_mv TO VDC' ,DBMS_SQL.NATIVE);
+--    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+/*
+DBMS_SQL.PARSE(cursor_handle,
+      'GRANT SELECT ON gss5lf_mv TO harrisle' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+*/
+
+DBMS_SQL.CLOSE_CURSOR(cursor_handle);
+
+UPDATE MV_Refresh_Log SET USER_ID = user_id_in, Last_Refresh = SYSDATE
+    WHERE PK_Table_name = 'GSS5LF_MV' AND fk_system_id = 'MV';
+
+
+do_sql_stmnt('comment on table GSS5LF_MV   is ''Average number of species at length (5 cm groups) by series, year and stratum'||
+                                               ' // Fréquence moyenne à longueur (groupe 5 cm) de chaque espèce par serie, année et strate''');
+do_sql_stmnt('comment on column GSS5LF_MV.SERIES      IS ''survey series name'||
+                                                         ' // Identification de serie de reléve''');
+do_sql_stmnt('comment on column GSS5LF_MV.YEAR        IS ''year of survey'||
+                                                         ' // année de la Relevé''');
+do_sql_stmnt('comment on column GSS5LF_MV.STRAT       IS ''survey stratum code'||
+                                                         ' // code de strate''');
+do_sql_stmnt('comment on column GSS5LF_MV.nTOWS       IS ''Number of tows in stratum'||
+                                                         ' // nombre de traites dans la strate''');
+do_sql_stmnt('comment on column GSS5LF_MV.SPEC        IS ''Research species code'||
+                                                         ' // code d&rsquo;espèce de recherche''');
+do_sql_stmnt('comment on column GSS5LF_MV.FLEN        IS ''Fish length (cm)'||
+                                                         ' // Longeuer de poisson (cm)''');
+do_sql_stmnt('comment on column GSS5LF_MV.AVGclen     IS ''Average of count at length adjusted for subsampling'||
+                                                         ' // moyenne de nombre de cette longeuer rajuste pour sous-échantillonnage''');
+do_sql_stmnt('comment on column GSS5LF_MV.VARclen     IS ''Variance of count at length adjusted for subsampling'||
+                                                         ' // Variance de nombre de cette longeuer rajuste pour sous-échantillonnage''');
+do_sql_stmnt('comment on column GSS5LF_MV.AVGstdclen  IS ''Average of count at length adjusted for subsampling and standardized for distance towed'||
+                                                         ' // moyenne de nombre de cette longeuer rajuste pour sous-échantillonnage et standardisé pour la distance''');
+do_sql_stmnt('comment on column GSS5LF_MV.VARstdclen  IS ''Variance of count at length adjusted for subsampling and standardized for distance towed'||
+                                                         ' // Variance de nombre de cette longeuer rajuste pour sous-échantillonnage et standardisé pour la distance''');
+
+Commit;
+IF Button_in != 'NON_WEB' THEN
+    gsmv_refresh.MV_refresh_form(User_Id_in);
+END IF;
+END;
+
+
+PROCEDURE make_gssalk_mv(
+                Button_in   IN      varchar2,
+                User_Id_in  IN      varchar2)
+/*
+PROCEDURE make gssalk mv
+
+Procedure Name:		gssalk_mv
+Author:				B. Branton
+Date Written:		2001/08/08
+Function:
+	This is one of a series of procedures used to refresh materialized views of
+	stratified groundfish survey data. These materialized views (intermediate tables)
+	allow for computationally intensive procedures to be run on a timed basis rather than on
+	demand.
+
+    This form is used to start the administration or editing process.
+    It displays a set of options which will subsequently allow the user.
+
+Modification History (as Date YYYY/MM/DD  initials - change description):
+	2001/08/08	rb 		initial test version
+	2001/08/17	pcb		converted from script to procedures in a package,
+	                    added header commentary
+
+
+*/
+IS
+	i                   NUMBER :=1 ;
+	cursor_handle           INTEGER := DBMS_SQL.OPEN_CURSOR;
+	dbms_sql_feedback       INTEGER;
+	success                 BOOLEAN := FALSE;
+	sql_in                  VARCHAR2(2000);
+BEGIN
+
+
+--
+-- fish count at age and length by species, strat, year and series (60 seconds)
+--
+    FOR itest in (select * from user_catalog where table_name = 'GSSALK_MV') LOOP
+        sql_in := 'DROP TABLE gssalk_mv';
+    	DBMS_SQL.PARSE(cursor_handle,sql_in,DBMS_SQL.NATIVE);
+    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+    END LOOP;
+-- note that gsmvcat_tmp is included in the following query for referential integrity purposes
+-- so that no det rows are included which do not have a corresponding catch row
+    sql_in := 'CREATE TABLE gssalk_mv PCTFREE 0 UNRECOVERABLE AS '||
+        ' SELECT AA.* FROM '||
+--        ' (SELECT distinct SERIES, YEAR, STRAT, NTOWS, g.SPEC, FSEX, '||
+--        ' DECODE(s.lgrp,1,g.flen,2,.5+FLOOR(g.flen/2)*2,3,1+FLOOR(g.flen/3)*3) FLEN '||
+--        '   FROM GSS1LF_MV g, gsspec s where g.spec=s.spec  ) LL, '||
+        ' (SELECT l.FK_series_ID series, l.year, i.strat, d.spec, DECODE(lfsexed,''Y'',fsex ,0) fsex, d.age, '||
+        ' DECODE(s.lgrp,1,flen,2,.5+FLOOR(d.flen/2)*2,3,1+FLOOR(d.flen/3)*3) flen, '||
+        ' count(*) cagelen, SUM(d.fwt) totwgt  '||
+        ' FROM gsspec s, gsddet_mv d, gsmvcat_tmp c, gsmvinf_tmp i, gsmission_list l '||
+        ' WHERE i.mission=d.mission '||
+        '  AND i.setno=d.setno '||
+        '  AND i.mission=l.PK_mission '||
+        '  AND i.setno=d.setno '||
+        '  AND d.mission=c.mission '||
+        '  AND d.setno=c.setno '||
+        '  AND d.spec=c.spec '||
+        '  AND d.spec=s.spec  '||
+        '  AND d.age is NOT NULL  '||
+        '  AND i.strat is NOT NULL '||
+        '  GROUP BY l.FK_series_ID, l.year, i.strat, d.spec, DECODE(lfsexed,''Y'',fsex,0), age, '||
+        '  DECODE(s.lgrp,1,flen,2,.5+FLOOR(d.flen/2)*2,3,1+FLOOR(d.flen/3)*3)) AA';
+--        '  DECODE(s.lgrp,1,flen,2,.5+FLOOR(d.flen/2)*2,3,1+FLOOR(d.flen/3)*3)) AA  '||
+--        '  where LL.series = AA.series AND LL.year = AA.year AND LL.strat = AA.strat '||
+--        '        AND LL.spec = AA.spec AND LL.fsex=AA.fsex AND LL.flen = AA.flen';
+
+      I := 0;
+      WHILE (I < length(sql_in)) LOOP
+        DBMS_OUTPUT.PUT_LINE (substr(sql_in,I, 80));
+        I := I + 80;
+      END LOOP;
+
+
+    DBMS_SQL.PARSE(cursor_handle, sql_in    ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    --  NDS (for this one because it tends to go infinite on BIO before changes)
+    -- EXECUTE IMMEDIATE sql_in;
+    gsmv_refresh.do_grants(User_list,'gssalk_mv|','select|');
+
+--    DBMS_SQL.PARSE(cursor_handle,  'GRANT SELECT ON gssalk_mv TO mflib' ,DBMS_SQL.NATIVE);
+--    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+--
+--    DBMS_SQL.PARSE(cursor_handle,  'GRANT SELECT ON gssalk_mv TO VDC' ,DBMS_SQL.NATIVE);
+--    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+DBMS_SQL.PARSE(cursor_handle,
+      'ANALYZE TABLE gssalk_mv COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+  DBMS_SQL.PARSE(cursor_handle,
+    'ALTER TABLE gssalk_mv ADD CONSTRAINT gssalk_ind  PRIMARY KEY (series,year,strat,spec,fsex,age,flen,cagelen)'||
+	' PCTFREE 0 '  ,DBMS_SQL.NATIVE);
+  dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+DBMS_SQL.PARSE(cursor_handle,
+      'ANALYZE INDEX gssalk_ind COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+/*
+   DBMS_SQL.PARSE(cursor_handle,
+    'ALTER TABLE gssalk_mv ADD CONSTRAINT gssalk_fk1 FOREIGN KEY(series,year,strat,spec,fsex,flen)'||
+	'  REFERENCES GSS3LF_MV(series,year,strat,spec,fsex,flen) PCTFREE 0 '  ,DBMS_SQL.NATIVE);
+  dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+*/
+
+  /* drop and recreate the index on gsstratum -- info only this needs to be done by owner
+    FOR itest in (select * from all_ind_columns where index_name = 'GSSTRATUM_IND' and column_name = 'STRAT') LOOP
+        sql_in := 'DROP INDEX GSSTRATUM_IND';
+    	DBMS_SQL.PARSE(cursor_handle,sql_in, DBMS_SQL.NATIVE);
+    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+    END LOOP;
+
+    DBMS_SQL.PARSE(cursor_handle,
+          'ANALYZE TABLE gsstratum COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle,
+        'CREATE INDEX gsstratum_IND on gsstratum (STRAT)PCTFREE 0  UNRECOVERABLE' ,DBMS_SQL.NATIVE);
+    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+    DBMS_OUTPUT.PUT_LINE (' created index gsstratum_IND ');
+
+    DBMS_SQL.PARSE(cursor_handle,
+         'ANALYZE INDEX gsstratum_IND COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+*/
+/*
+DBMS_SQL.PARSE(cursor_handle,  'GRANT SELECT ON gssalk_mv TO harrisle' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+*/
+
+DBMS_SQL.CLOSE_CURSOR(cursor_handle);
+
+UPDATE MV_Refresh_Log SET USER_ID = user_id_in, Last_Refresh = SYSDATE
+    WHERE PK_Table_name = 'GSSALK_MV' AND fk_system_id = 'MV';
+
+UPDATE MV_Refresh_Log SET USER_ID = user_id_in, Last_Refresh = SYSDATE
+    WHERE PK_Table_name = 'GSSALK_MV_sabs' AND fk_system_id = 'MV';
+
+
+do_sql_stmnt('comment on table GSSALK_MV   is ''Number and weight of species at age and length (1, 2 or 3 cm groups depending on species) by series, year, and stratum'||
+                                               ' // Fréquence et poids à âge-longueur  (groupe 1, 2 ou 3 cm celon l&rsquo;espèce) par serie, année et strate''');
+do_sql_stmnt('comment on column GSSALK_MV.SERIES        IS ''survey series name'||
+                                                           ' // Identification de serie de reléve''');
+do_sql_stmnt('comment on column GSSALK_MV.YEAR          IS ''year of survey'||
+                                                           ' // année de la Relevé''');
+do_sql_stmnt('comment on column GSSALK_MV.STRAT         IS ''survey stratum code'||
+                                                           ' // code de strate''');
+do_sql_stmnt('comment on column GSSALK_MV.SPEC          IS ''Research species code'||
+                                                           ' // code d&rsquo;espèce de recherche''');
+do_sql_stmnt('comment on column GSSALK_MV.FSEX          IS ''sex code'||
+                                                           ' // code de sexe''');
+do_sql_stmnt('comment on column GSSALK_MV.AGE           IS ''Fish age (years)'||
+                                                           ' // Age de poisson (Années)''');
+do_sql_stmnt('comment on column GSSALK_MV.FLEN          IS ''Fish length (cm)'||
+                                                           ' // Longeuer de poisson (cm)''');
+do_sql_stmnt('comment on column GSSALK_MV.CAGELEN       IS ''Count of fish observed at age and length'||
+                                                           ' // Nombre de poisson observé a cette age et longeuer''');
+do_sql_stmnt('comment on column GSSALK_MV.TOTWGT        IS ''total weight(gm) of fish observed at age and length'||
+                                                           ' // Poids total(gm) observé a cette age et longeuer''');
+
+Commit;
+IF Button_in != 'NON_WEB' THEN
+    gsmv_refresh.MV_refresh_form(User_Id_in);
+END IF;
+END;
+
+PROCEDURE make_gssalk_mv_sabs(
+                Button_in   IN      varchar2,
+                User_Id_in  IN      varchar2)
+/*
+PROCEDURE make gssalk mv using sabs2 data
+
+Procedure Name:		gssalk_mv_sabs
+Author:				B. Branton
+Date Written:		2001/08/08
+Function:
+	This is one of a series of procedures used to refresh materialized views of
+	stratified groundfish survey data. These materialized views (intermediate tables)
+	allow for computationally intensive procedures to be run on a timed basis rather than on
+	demand. This is a modified version of make_gssalk_mv which uses data on the sabs2 system.
+
+    This form is used to start the administration or editing process.
+    It displays a set of options which will subsequently allow the user.
+
+Modification History (as Date YYYY/MM/DD  initials - change description):
+	2001/08/08	rb 		initial test version
+	2001/08/17	pcb		converted from script to procedures in a package,
+	                    added header commentary
+
+
+*/
+IS
+	i                   NUMBER :=1 ;
+	cursor_handle           INTEGER := DBMS_SQL.OPEN_CURSOR;
+	dbms_sql_feedback       INTEGER;
+	success                 BOOLEAN := FALSE;
+	sql_in                  VARCHAR2(2000);
+BEGIN
+
+
+--
+-- fish count at age and length by species, strat, year and series (60 seconds)
+--
+    FOR itest in (select count (*) nrec from user_catalog where table_name = 'GSSALK_MV') LOOP
+        sql_in := 'DROP TABLE gssalk_mv';
+    	DBMS_SQL.PARSE(cursor_handle,sql_in,DBMS_SQL.NATIVE);
+    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+    END LOOP;
+
+-- note that gsmvcat_tmp is included in the following query for referential integrity purposes
+-- so that no det rows are included which do not have a corresponding catch row
+    sql_in := 'CREATE TABLE gssalk_mv PCTFREE 0 UNRECOVERABLE AS '||
+        ' SELECT AA.* FROM '||
+        ' (SELECT distinct SERIES, YEAR, STRAT, NTOWS, g.SPEC, FSEX, '||
+        ' DECODE(s.lgrp,1,g.flen,2,.5+FLOOR(g.flen/2)*2,3,1+FLOOR(g.flen/3)*3) FLEN '||
+        '   FROM GSS1LF_MV g, gsspec s where g.spec=s.spec  ) LL, '||
+        ' (SELECT l.FK_series_ID series, l.year, i.strat, d.spec, DECODE(lfsexed,''Y'',fsex ,0) fsex, d.age, '||
+        ' DECODE(s.lgrp,1,flen,2,.5+FLOOR(d.flen/2)*2,3,1+FLOOR(d.flen/3)*3) flen, '||
+        ' count(*) cagelen, SUM(d.fwt) totwgt  '||
+        ' FROM gsspec s, gsddet_mv d, gsdcat_mv c, gsmvinf_tmp i, gsmission_list l '||
+        ' WHERE i.mission=d.mission '||
+        '  AND i.setno=d.setno '||
+        '  AND i.mission=l.PK_mission '||
+        '  AND i.setno=d.setno '||
+        '  AND d.mission=c.mission '||
+        '  AND d.setno=c.setno '||
+        '  AND d.spec=c.spec '||
+        '  AND d.spec=s.spec  '||
+        '  AND d.age is NOT NULL  '||
+        '  AND i.strat is NOT NULL '||
+        '  GROUP BY l.FK_series_ID, l.year, i.strat, d.spec, DECODE(lfsexed,''Y'',fsex,0), age, '||
+        '  DECODE(s.lgrp,1,flen,2,.5+FLOOR(d.flen/2)*2,3,1+FLOOR(d.flen/3)*3)) AA  '||
+        '  where LL.series = AA.series AND LL.year = AA.year AND LL.strat = AA.strat '||
+        '        AND LL.spec = AA.spec AND LL.fsex=AA.fsex AND LL.flen = AA.flen';
+
+      I := 0;
+      WHILE (I < length(sql_in)) LOOP
+        DBMS_OUTPUT.PUT_LINE (substr(sql_in,I, 80));
+        I := I + 80;
+      END LOOP;
+
+DBMS_SQL.PARSE(cursor_handle, sql_in
+      ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    gsmv_refresh.do_grants(User_list,'gssalk_mv|','select|');
+
+--    DBMS_SQL.PARSE(cursor_handle, 'GRANT SELECT ON gssalk_mv TO mflib' ,DBMS_SQL.NATIVE);
+--    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+--
+--    DBMS_SQL.PARSE(cursor_handle, 'GRANT SELECT ON gssalk_mv TO VDC' ,DBMS_SQL.NATIVE);
+--    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+DBMS_SQL.PARSE(cursor_handle, 'ANALYZE TABLE gssalk_mv COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+  DBMS_SQL.PARSE(cursor_handle,
+    'ALTER TABLE gssalk_mv ADD CONSTRAINT gssalk_ind  PRIMARY KEY (series,year,strat,spec,fsex,age,flen,cagelen)'||
+	' PCTFREE 0 '  ,DBMS_SQL.NATIVE);
+  dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+DBMS_SQL.PARSE(cursor_handle,
+      'ANALYZE INDEX gssalk_ind COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+DBMS_SQL.PARSE(cursor_handle,
+    'ALTER TABLE gssalk_mv ADD CONSTRAINT gssalk_fk1 FOREIGN KEY(series,year,strat,spec,fsex,flen)'||
+	'  REFERENCES GSS1LF_MV(series,year,strat,spec,fsex,flen) PCTFREE 0 '  ,DBMS_SQL.NATIVE);
+  dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+  /* drop and recreate the index on gsstratum */
+    FOR itest in (select * from all_ind_columns where table_name = 'GSSTRATUM' and column_name = 'STRAT') LOOP
+        sql_in := 'DROP INDEX GSSTRATUM_IND';
+    	DBMS_SQL.PARSE(cursor_handle,sql_in, DBMS_SQL.NATIVE);
+    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+    END LOOP;
+
+    DBMS_SQL.PARSE(cursor_handle,
+          'ANALYZE TABLE gsstratum COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    DBMS_SQL.PARSE(cursor_handle,
+        'CREATE INDEX gsstratum_IND on gsstratum (STRAT)PCTFREE 0  UNRECOVERABLE' ,DBMS_SQL.NATIVE);
+    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+    DBMS_OUTPUT.PUT_LINE (' created index gss5lf_ind ');
+
+    DBMS_SQL.PARSE(cursor_handle,
+         'ANALYZE INDEX gsstratum_IND COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+
+/*
+DBMS_SQL.PARSE(cursor_handle, 'GRANT SELECT ON gssalk_mv TO harrisle' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+*/
+
+DBMS_SQL.CLOSE_CURSOR(cursor_handle);
+
+UPDATE MV_Refresh_Log SET USER_ID = user_id_in||'@SABS2', Last_Refresh = SYSDATE
+    WHERE PK_Table_name = 'GSSALK_MV' AND fk_system_id = 'MV';
+
+UPDATE MV_Refresh_Log SET USER_ID = user_id_in, Last_Refresh = SYSDATE
+    WHERE PK_Table_name = 'GSSALK_MV_sabs' AND fk_system_id = 'MV';
+
+Commit;
+IF ((Button_in != 'NON_WEB') AND (Button_in != 'ALK@SABS')) THEN
+    gsmv_refresh.MV_refresh_form(User_Id_in);
+END IF;
+
+IF Button_in = 'ALK@SABS' THEN
+    gsmv_refresh.MV_refresh_SABS_ALK(User_Id_in);
+END IF;
+
+END;
+
+PROCEDURE make_gsspec_mv(
+                Button_in   IN      varchar2,
+                User_Id_in  IN      varchar2)
+/*
+PROCEDURE make gsspec mv
+
+Procedure Name:		make_gsspec_mv
+Author:				B. Branton
+Date Written:		2001/08/08
+Function:
+	This is one of a series of procedures used to refresh materialized views of
+	stratified groundfish survey data. These materialized views (intermediate tables)
+	allow for computationally intensive procedures to be run on a timed basis rather than on
+	demand.
+
+    This form is used to start the administration or editing process.
+    It displays a set of options which will subsequently allow the user.
+
+Modification History (as Date YYYY/MM/DD  initials - change description):
+	2001/08/08	rb 		initial test version
+	2001/08/17	pcb		converted from script to procedures in a package,
+	                    added header commentary
+
+
+*/
+IS
+	i                   NUMBER :=1;
+	cursor_handle           INTEGER := DBMS_SQL.OPEN_CURSOR;
+	dbms_sql_feedback       INTEGER;
+	success                 BOOLEAN := FALSE;
+	sql_in                  VARCHAR2(2000);
+BEGIN
+
+--
+-- length range by species
+--
+
+    FOR itest in (select * from user_catalog where table_name = 'GSSPEC_MV') LOOP
+        sql_in := 'DROP TABLE gsspec_mv';
+    	DBMS_SQL.PARSE(cursor_handle,sql_in,DBMS_SQL.NATIVE);
+    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+    END LOOP;
+
+    sql_in := 'CREATE TABLE gsspec_mv PCTFREE 0 UNRECOVERABLE AS '||
+      'SELECT spec, MIN(flen) lmin, MAX(flen) lmax '||
+      'FROM GSS1LF_MV  GROUP BY  spec';
+
+DBMS_SQL.PARSE(cursor_handle, sql_in
+      ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+DBMS_SQL.PARSE(cursor_handle,
+      'ANALYZE TABLE gsspec_mv COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+DBMS_SQL.PARSE(cursor_handle,
+      'CREATE INDEX gsspec_ind ON '||
+	'gsspec_mv(spec) '||
+	'PCTFREE 0 '||
+	'UNRECOVERABLE' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+      I := 0;
+      WHILE (I < length(sql_in)) LOOP
+        DBMS_OUTPUT.PUT_LINE (substr(sql_in,I, 80));
+        I := I + 80;
+      END LOOP;
+
+DBMS_SQL.PARSE(cursor_handle,
+      'ANALYZE INDEX gsspec_ind COMPUTE STATISTICS' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+    gsmv_refresh.do_grants(User_list,'gsspec_mv|','select|');
+
+--    DBMS_SQL.PARSE(cursor_handle, 'GRANT SELECT ON gsspec_mv TO mflib' ,DBMS_SQL.NATIVE);
+--    	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+/*
+DBMS_SQL.PARSE(cursor_handle,  'GRANT SELECT ON gsspec_mv TO harrisle' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+*/
+
+DBMS_SQL.CLOSE_CURSOR(cursor_handle);
+
+UPDATE MV_Refresh_Log SET USER_ID = user_id_in, Last_Refresh = SYSDATE
+    WHERE PK_Table_name = 'GSSPEC_MV' AND fk_system_id = 'MV';
+
+
+do_sql_stmnt('comment on table GSSPEC_MV   is ''Length range by species '||
+                                              ' // étendue de longueur par espèce''');
+do_sql_stmnt('comment on column GSSPEC_MV.SPEC          IS ''Research species code'||
+                                                           ' // code d&rsquo;espèce de recherche''');
+do_sql_stmnt('comment on column GSSPEC_MV.LMIN          IS ''minimum recorded length for species'||
+                                                           ' // longeuer minimum pour cette espèce''');
+do_sql_stmnt('comment on column GSSPEC_MV.LMAX          IS ''maximum recorded length for species'||
+                                                           ' // longeuer maximum pour cette espèce''');
+Commit;
+IF Button_in != 'NON_WEB' THEN
+    gsmv_refresh.MV_refresh_form(User_Id_in);
+END IF;
+END;
+
+
+PROCEDURE MV_refresh_form(
+                User_Id_in     IN      varchar2 DEFAULT NULL)
+/*
+PROCEDURE Materialized Views Refresh Selection
+
+Procedure Name:		MV_refresh_form
+Author:				Pierre C. Brien
+Date Written:		2001/09/24
+Function:
+	This routine allows users to view the current status of all refreshable Materialized
+	Views in the MV_Refresh_Log table. A button allows the user to request that view to
+	be refreshed.
+
+	Input parameter - USER_ID the user_id is input and passed to the refresh routine as a parameter
+	this allows for tracking usage by user. Currently only the user who initiated the last refresh
+	of a materialized view is recorded as there is no continuous log.
+
+Modification History (as Date YYYY/MM/DD  initials - change description):
+	2001/09/24		initial test version
+	2002/03/28		dummy version for IML
+	                - this should be a temporary fix while we determine
+	                the future procedural topology of
+
+
+*/
+IS
+	i                   NUMBER :=0;
+	j                   NUMBER :=0;
+	k                   NUMBER :=0;
+	t_str               varchar2(50);
+/* inactiveate for non VDC sites */
+   	st mflib.mwmfdutil.state_data%rowtype;
+	cu mflib.mwmfdutil.staff_data%rowtype;
+/*  end inactivate */
+	me varchar2(20);
+	cnt number;
+	divn_abbr varchar2(15);
+	User_Id_curr        varchar2(20);
+
+
+BEGIN
+
+    IF User_Id_In IS NOT NULL THEN
+        User_Id_curr := User_Id_In;
+    ELSE
+        Mwmfdutil.restore_state(st, cu, divn_abbr);
+        User_Id_curr := cu.username;
+    END IF;
+
+ 	mwmfdutil.prolog ('NWAGS - Materialized Views Refresh Administration ');
+	htp.strong('<FONT color=teal size=5> NWAGS - Materialized Views Refresh Administration  </font><br><br>','');
+
+	htp.p('<table border>');
+	htp.p('<tr><th>Table Name<th>System Code<th>Table Description<th>User Id<th>Last Refresh<th>Force Refresh');
+    FOR irow IN (SELECT * FROM MV_Refresh_Log) LOOP
+        i := i + 1;
+		htp.p('<tr><td>');htp.p(irow.PK_Table_name );
+		htp.p('</td><td>')    ;htp.p(irow.FK_System_id  );
+		htp.p('</td><td>')    ;htp.p(irow.Description   );
+		htp.p('</td><td>')    ;htp.p(irow.User_Id       );
+        htp.p('</td><td>')    ;htp.p(to_char(irow.Last_Refresh,'YYYY/MON/DD HH24:MI'));
+        htp.p('</td><td>')    ;
+  -- the next two lines are test code
+  --                        t_str := substr(irow.PK_Table_name, 1, length(irow.PK_Table_name) -2)||'tmv';
+  --                        htp.formOpen('gsmv_refresh.make_'||t_str);
+                          htp.formOpen('gsmv_refresh.make_'||irow.PK_Table_name);
+                          htp.formHidden('User_Id_in',User_Id_curr);
+                          htp.formSubmit('Button_in',irow.PK_Table_name);
+                          htp.formClose;
+        htp.p('</td></tr>')    ;
+    END LOOP;
+
+	htp.p('</table>');
+	htp.formOpen('gsmv_refresh.MV_refresh_All');
+	htp.formHidden('User_Id_in',User_Id_curr);
+    htp.formSubmit('Button_in','Do All MVs');
+    htp.formClose;
+
+	htp.bodyclose;
+	htp.htmlclose;
+
+    i := 1;
+END;
+
+
+
+PROCEDURE MV_refresh_SABS_ALK(
+                User_Id_in     IN      varchar2 DEFAULT NULL)
+/*
+PROCEDURE Materialized Views Refresh SABS Age Length Key
+
+Procedure Name:		MV_refresh_form
+Author:				Pierre C. Brien
+Date Written:		2001/09/24
+Function:
+	This routine allows users to view the current status of all refresable Materialized
+	Views in the MV_Refresh_Log table. A button allows the user to request that view to
+	be refreshed.
+
+	Input parameter - USER_ID the user_id is input and passed to the refresh routine as a parameter
+	this allows for tracking usage by user. Currently only the user who initiated the last refresh
+	of a materialized view is recorded as there is no continuous log.
+
+Modification History (as Date YYYY/MM/DD  initials - change description):
+	2001/10/10		modified version of refresh_form which only presents a button to do
+	                the Age Length Key using SABS data. This permits the testing of result
+	                with newly entered ages.
+
+
+*/
+IS
+	i                   NUMBER :=0;
+	j                   NUMBER :=0;
+	k                   NUMBER :=0;
+	t_str               varchar2(50);
+
+/*
+   	st mflib.mwmfdutil.state_data%rowtype;
+	cu mflib.mwmfdutil.staff_data%rowtype;
+	me varchar2(20);
+	cnt number;
+	divn_abbr varchar2(15);
+	User_Id_curr        varchar2(20);
+*/
+
+BEGIN
+/*
+    IF User_Id_In IS NOT NULL THEN
+        User_Id_curr := User_Id_In;
+    ELSE
+        Mwmfdutil.restore_state(st, cu, divn_abbr);
+        User_Id_curr := cu.username;
+    END IF;
+
+ 	mwmfdutil.prolog ('NWAGS - Materialized Views Refresh Administration ');
+	htp.strong('<FONT color=teal size=5> NWAGS - Materialized Views Refresh Age Length with SABS data  </font><br><br>','');
+
+
+	htp.p('<table border>');
+	htp.p('<tr><th>Table Name<th>System Code<th>Table Description<th>User Id<th>Last Refresh<th>Force Refresh');
+    FOR irow IN (SELECT * FROM MV_Refresh_Log where upper(PK_Table_name) = upper('GSSALK_MV_sabs')) LOOP
+        i := i + 1;
+		htp.p('<tr><td>');htp.p(irow.PK_Table_name );
+		htp.p('</td><td>')    ;htp.p(irow.FK_System_id  );
+		htp.p('</td><td>')    ;htp.p(irow.Description   );
+		htp.p('</td><td>')    ;htp.p(irow.User_Id       );
+        htp.p('</td><td>')    ;htp.p(to_char(irow.Last_Refresh,'YYYY/MON/DD HH24:MI'));
+        htp.p('</td><td>')    ;
+  -- the next two lines are test code
+  --                        t_str := substr(irow.PK_Table_name, 1, length(irow.PK_Table_name) -2)||'tmv';
+  --                        htp.formOpen('gsmv_refresh.make_'||t_str);
+                          htp.formOpen('gsmv_refresh.make_'||irow.PK_Table_name);
+                          htp.formHidden('User_Id_in',User_Id_curr);
+                          htp.formSubmit('Button_in','ALK@SABS');
+                          htp.formClose;
+        htp.p('</td></tr>')    ;
+    END LOOP;
+
+	htp.p('</table>');
+
+/*********/
+
+/*	htp.formOpen('gsmv_refresh.make_gssalk_mv_sabs');
+	htp.formHidden('User_Id_in',User_Id_curr);
+    htp.formSubmit('Button_in','ALK@SABS');
+    htp.formClose; */
+/*
+	htp.bodyclose;
+	htp.htmlclose;
+*/
+    i := 1;
+END;
+
+
+PROCEDURE MV_refresh_ALL(
+               Button_in      IN      varchar2,
+               User_Id_in     IN      varchar2)
+/*
+PROCEDURE Refresh all Materialized Views
+
+Procedure Name:		MV_refresh_all
+Author:				Pierre C. Brien
+Date Written:		2001/09/24
+Function:
+	This routine is called when the ALL option is used on the refresh form.
+
+	Input parameter - USER_ID the user_id is input and passed to the refresh routine as a parameter
+	this allows for tracking usage by user. Currently only the user who initiated the last refresh
+	of a materialized view is recorded as there is no continuous log.
+
+Modification History (as Date YYYY/MM/DD  initials - change description):
+	2001/09/24		original version
+
+
+*/
+IS
+	i                   NUMBER :=0;
+	j                   NUMBER :=0;
+	k                   NUMBER :=0;
+	cursor_handle           INTEGER := DBMS_SQL.OPEN_CURSOR;
+	dbms_sql_feedback       INTEGER;
+	success                 BOOLEAN := FALSE;
+	sql_in                  VARCHAR2(2000);
+
+BEGIN
+   gsmv_refresh.gsmv_init      ('NON_WEB',user_id_in||'@ALL');
+   gsmv_refresh.make_GSSPEC_MV ('NON_WEB',user_id_in||'@ALL');
+   gsmv_refresh.make_gsdinf_mv ('NON_WEB',user_id_in||'@ALL');
+   gsmv_refresh.make_gssinf_mv ('NON_WEB',user_id_in||'@ALL');
+   gsmv_refresh.make_gsdcat_mv ('NON_WEB',user_id_in||'@ALL');
+   gsmv_refresh.make_gsscat_mv ('NON_WEB',user_id_in||'@ALL');
+   gsmv_refresh.make_GSD1LF_MV ('NON_WEB',user_id_in||'@ALL');
+   gsmv_refresh.make_GSDDET_MV ('NON_WEB',user_id_in||'@ALL');
+   gsmv_refresh.make_GSD1LF_MV ('NON_WEB',user_id_in||'@ALL');
+   gsmv_refresh.make_gsd3lf_MV ('NON_WEB',user_id_in||'@ALL');
+   gsmv_refresh.make_gsd5lf_MV ('NON_WEB',user_id_in||'@ALL');
+   gsmv_refresh.make_GSS1LF_MV ('NON_WEB',user_id_in||'@ALL');
+   gsmv_refresh.make_GSS3LF_MV ('NON_WEB',user_id_in||'@ALL');
+   gsmv_refresh.make_GSS5LF_MV ('NON_WEB',user_id_in||'@ALL');
+   gsmv_refresh.make_GSSALK_MV ('NON_WEB',user_id_in||'@ALL');
+   gsmv_refresh.make_GSSPEC_MV ('NON_WEB',user_id_in||'@ALL');
+
+    IF Button_in != 'NON_WEB' THEN
+    gsmv_refresh.MV_refresh_form(User_Id_in);
+    END IF;
+
+END;
+
+
+PROCEDURE gsmvCancel
+/*
+PROCEDURE Materialized Views Refresh Selection
+
+Procedure Name:		MV_refresh_form
+Author:				Pierre C. Brien
+Date Written:		2001/09/24
+Function:
+	This routine allows users to view the current status of all refresable Materialized
+	Views in the MV_Refresh_Log table. A button allows the user to request that view to
+	be refreshed.
+
+	Input parameter - USER_ID the user_id is input and passed to the refresh routine as a parameter
+	this allows for tracking usage by user. Currently only the user who initiated the last refresh
+	of a materialized view is recorded as there is no continuous log.
+
+
+Modification History (as Date YYYY/MM/DD  initials - change description):
+	2001/09/24		initial test version
+
+
+*/
+IS
+	i                   NUMBER :=0;
+	j                   NUMBER :=0;
+	k                   NUMBER :=0;
+	cursor_handle       INTEGER := DBMS_SQL.OPEN_CURSOR;
+	dbms_sql_feedback   INTEGER;
+
+
+BEGIN
+/*	mwmfdutil.prolog (' NWAGS - Materialized Views Refresh Administration ');
+	htp.strong('<FONT color=teal size=5> Just a dummy proc to end the process  </font><br><br>','');
+
+	htp.bodyclose;
+	htp.htmlclose;
+*/
+    DBMS_SQL.PARSE(cursor_handle, 'ALTER TABLE gsddet_mv ADD CONSTRAINT gsddet_ind  PRIMARY KEY (series, year, mission, setno, spec, fshno, flen) '||
+                  'PCTFREE 0 ' ,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+
+END;
+
+
+PROCEDURE gsmvViewComments
+/*
+PROCEDURE Materialized Views Refresh Selection
+
+Procedure Name:		MV_refresh_form
+Author:				Pierre C. Brien
+Date Written:		2001/09/24
+Function:
+	This routine regenerates the comments on the views GSDLF_MV AND GSSLF_MV. These views can point to
+	GSD1LF_MV or GSD3LF_MV (and GSS1LF_MV or GSS3LF_MV)
+	The views are created with the following statements
+	CREATE VIEW gsslf_mv AS SELECT * FROM gss3lf_mv;
+	CREATE VIEW gsdlf_mv AS SELECT * FROM gsd3lf_mv;
+ 	GRANT SELECT ON gsdlf_mv TO mflib WITH GRANT OPTION;
+	GRANT SELECT ON gsdlf_mv TO vdc WITH GRANT OPTION;
+	GRANT SELECT ON gsdlf_mv TO harrisle;
+ 	GRANT SELECT ON gsslf_mv TO mflib WITH GRANT OPTION;
+	GRANT SELECT ON gsslf_mv TO vdc WITH GRANT OPTION;
+	GRANT SELECT ON gsslf_mv TO harrisle;
+
+Modification History (as Date YYYY/MM/DD  initials - change description):
+	2001/09/24		initial test version
+
+
+
+*/
+IS
+	i                   NUMBER :=0;
+BEGIN
+
+do_sql_stmnt('comment on TABLE GSDLF_MV   is ''Total number at length (1,2 or 3 cm groups depending on species) by series, year, stratum, mission, set number and sex'||
+                                               ' // Fréquence de longueur (groupe 1, 2 ou 3 cm celon l&rsquo;espèce)  par serie, année, strate, mission, numéro de prise et sexe''');
+
+do_sql_stmnt('comment on column GSDLF_MV.SERIES        IS ''survey series name'||
+                                                            ' // Identification de serie de reléve''');
+do_sql_stmnt('comment on column GSDLF_MV.YEAR          IS ''Year of Survey'||
+                                                            ' // année de la Relevé''');
+do_sql_stmnt('comment on column GSDLF_MV.STRAT         IS ''survey stratum code'||
+                                                            ' // code de strate''');
+do_sql_stmnt('comment on column GSDLF_MV.MISSION       IS ''Mission/Cruise Id'||
+                                                            ' // Identification de coisière''');
+do_sql_stmnt('comment on column GSDLF_MV.SETNO         IS ''Survey set number'||
+                                                            ' // Identification de traite de reléve''');
+do_sql_stmnt('comment on column GSDLF_MV.SPEC          IS ''Research Species code'||
+                                                            ' // code d&rsquo;espèce de recherche''');
+do_sql_stmnt('comment on column GSDLF_MV.FSEX          IS ''sex code'||
+                                                            ' // code de sexe''');
+do_sql_stmnt('comment on column GSDLF_MV.FLEN          IS ''Fish length (cm)'||
+                                                            ' // Longeuer de poisson (cm)''');
+do_sql_stmnt('comment on column GSDLF_MV.clen          IS ''Count at length adjusted for subsampling'||
+                                                            ' // Nombre de cette longeuer rajuste pour sous-échantillonnage''');
+do_sql_stmnt('comment on column GSDLF_MV.stdclen       IS ''Count at length adjusted for subsampling and standardized for distance towed'||
+                                                            ' // Nombre de cette longeuer rajuste pour sous-échantillonnage et standardisé pour la distance''');
+
+do_sql_stmnt('comment on table GSSLF_MV   is ''Average number of species at length (1,2 or 3 cm groups depending on species) by series, year and stratum'||
+                                               ' // Fréquence moyenne à longueur (groupe 1, 2 ou 3 cm celon l&rsquo;espèce) de chaque espèce par serie, année et strate''');
+
+do_sql_stmnt('comment on column GSSLF_MV.SERIES         IS ''survey series name'||
+                                                             ' // Identification de serie de reléve''');
+do_sql_stmnt('comment on column GSSLF_MV.YEAR           IS ''year of survey'||
+                                                             ' // année de la Relevé''');
+do_sql_stmnt('comment on column GSSLF_MV.STRAT          IS ''survey stratum code'||
+                                                             ' // code de strate''');
+do_sql_stmnt('comment on column GSSLF_MV.NTOWS          IS ''Number of tows in stratum'||
+                                                             ' // nombre de traites dans la strate''');
+do_sql_stmnt('comment on column GSSLF_MV.SPEC           IS ''Research species code'||
+                                                             ' // code d&rsquo;espèce de recherche''');
+do_sql_stmnt('comment on column GSSLF_MV.FSEX           IS ''sex code'||
+                                                             ' // code de sexe''');
+do_sql_stmnt('comment on column GSSLF_MV.FLEN           IS ''Fish length (cm)'||
+                                                             ' // Longeuer de poisson (cm)''');
+do_sql_stmnt('comment on column GSSLF_MV.AVGclen        IS ''Average count at length adjusted for subsampling'||
+                                                             ' // moyenne de nombre de cette longeuer rajuste pour sous-échantillonnage''');
+do_sql_stmnt('comment on column GSSLF_MV.VARclen        IS ''Variance of count at length adjusted for subsampling'||
+                                                             ' // Variance de nombre de cette longeuer rajuste pour sous-échantillonnage''');
+do_sql_stmnt('comment on column GSSLF_MV.AVGstdclen     IS ''Average of count at length adjusted for subsampling and standardized for distnce towed'||
+                                                             ' // moyenne de nombre a cette longeuer rajuste pour sous-échantillonnage et standardisé pour la distance''');
+do_sql_stmnt('comment on column GSSLF_MV.VARstdclen     IS ''Variance of count at length adjusted for subsampling and standardized for distnce towed'||
+                                                             ' // Variance de nombre a cette longeuer rajusté pour sous-échantillonnage et standardisé pour la distance''');
+
+do_sql_stmnt('comment on table GSSPEC      is ''Quality control and data processing parameters by species'||
+                                              ' // Paramètres pour le contrôle de la qualité et le traitement des données par espèce''');
+do_sql_stmnt('comment on column GSSPEC.SPEC       IS ''Species codes (BIO/SABS/GFC)'||
+                                                             ' // Code d&rsquo;espèce (BIO/SABS/GFC)''');
+do_sql_stmnt('comment on column GSSPEC.CNAME      IS ''Species common names'||
+                                                      ' // Noms commun des espèces''');
+do_sql_stmnt('comment on column GSSPEC.DMIN       IS ''Minimum depth for this species'||
+                                                      ' // Profondeur minimum pour cette espèce''');
+do_sql_stmnt('comment on column GSSPEC.DMAX       IS ''Maximum depth for this species'||
+                                                      ' // Profondeur maximum pour cette espèce''');
+do_sql_stmnt('comment on column GSSPEC.VSEX1      IS ''title'||
+                                                       ' // titre''');
+do_sql_stmnt('comment on column GSSPEC.VSEX2      IS ''title'||
+                                                       ' // titre''');
+do_sql_stmnt('comment on column GSSPEC.VSEX3      IS ''title'||
+                                                       ' // titre''');
+do_sql_stmnt('comment on column GSSPEC.LGRP       IS ''length grouping'||
+                                                       ' // titre''');
+do_sql_stmnt('comment on column GSSPEC.LMIN       IS ''Minimum length'||
+                                                       ' // titre''');
+do_sql_stmnt('comment on column GSSPEC.LMAX       IS ''Maximum length'||
+                                                             ' // titre''');
+do_sql_stmnt('comment on column GSSPEC.MATREQ     IS ''Aging materials required'||
+                                                         ' // Materieux pour détermination de l&rsquo;âge requis''');
+do_sql_stmnt('comment on column GSSPEC.SAMPREQ    IS ''Samples required'||
+                                                         ' // Échantillons requis ''');
+do_sql_stmnt('comment on column GSSPEC.MLEN       IS ''title'||
+                                                        ' // titre''');
+do_sql_stmnt('comment on column GSSPEC.LENWGTA    IS ''Length weight regression coefficient a'||
+                                                     ' // coefficient de régression  a pour longeur et poids''');
+do_sql_stmnt('comment on column GSSPEC.LENWGTB    IS ''Length weight regression coefficient b'||
+                                                     ' // coefficient de régression  b pour longeur et poids''');
+do_sql_stmnt('comment on column GSSPEC.LFSEXED    IS ''Length frequency counts by sex (Y/N)'||
+                                                             ' // Fréquence de longueur par sexe (Y/N)''');
+do_sql_stmnt('comment on column GSSPEC.MAXWGT     IS ''Maximum weight for species'||
+                                                             ' // Poid maximum pour l&rsquo;espèce''');
+
+do_sql_stmnt('comment on table GSSPECIES   is ''Species codes, scientific names and english common names '||
+                                              ' // Codes d&rsquo;espèces, noms scientifiques et noms communs''');
+do_sql_stmnt('comment on column GSSPECIES.SPEC     IS ''title'||
+                                                             ' // titre''');
+do_sql_stmnt('comment on column GSSPECIES.COMM     IS ''Species common names'||
+                                                             ' // Noms commun des espèces''');
+do_sql_stmnt('comment on column GSSPECIES.CODE     IS ''Species codes (BIO/SABS/GFC)'||
+                                                             ' // Code d&rsquo;espèce (BIO/SABS/GFC)''');
+do_sql_stmnt('comment on column GSSPECIES.NMFS     IS ''Species codes (NMFS - USA)'||
+                                                             ' // Codes d&rsquo;espèces (NMFS - USA)''');
+do_sql_stmnt('comment on column GSSPECIES.ENTR     IS ''Date entered'||
+                                                             ' // date d&rsquo;insertion ''');
+
+
+do_sql_stmnt('comment on table GSSTRATUM   is ''Depth range and area by survey stratum '||
+                                              ' // tranche d&rsquo;eau et superficie par strat de relevés''');
+do_sql_stmnt('comment on column GSSTRATUM.STRAT     IS ''survey stratum code'||
+                                                         ' // code de strate''');
+do_sql_stmnt('comment on column GSSTRATUM.DMIN      IS ''Stratum minimum Depth'||
+                                                        ' // Profondeur minimum de la strate''');
+do_sql_stmnt('comment on column GSSTRATUM.DMAX      IS ''Stratum maximum Depth'||
+                                                        ' // Profondeur maximum de la strate''');
+do_sql_stmnt('comment on column GSSTRATUM.AREA      IS ''Area of stratum (**2)'||
+                                                        ' // Superficie de la strate (**2)''');
+do_sql_stmnt('comment on column GSSTRATUM.DEPTH     IS ''Stratum nominal Depth'||
+                                                        ' // Profondeur nomial de la strate''');
+do_sql_stmnt('comment on column GSSTRATUM.NAME      IS '' stratum name'||
+                                                         ' // nom de la strate''');
+
+do_sql_stmnt('comment on table GSSPEC      is ''Quality control and data processing parameters by species'||
+                                              ' // Paramètres pour le contrôle de la qualité et le traitement des données par espèce''');
+do_sql_stmnt('comment on column GSSPEC.SPEC       IS ''Species codes (BIO/SABS/GFC)'||
+                                                             ' // Code d&rsquo;espèce (BIO/SABS/GFC)''');
+do_sql_stmnt('comment on column GSSPEC.CNAME      IS ''Species common names'||
+                                                      ' // Noms commun des espèces''');
+do_sql_stmnt('comment on column GSSPEC.DMIN       IS ''Minimum depth for this species'||
+                                                      ' // Profondeur minimum pour cette espèce''');
+do_sql_stmnt('comment on column GSSPEC.DMAX       IS ''Maximum depth for this species'||
+                                                      ' // Profondeur maximum pour cette espèce''');
+do_sql_stmnt('comment on column GSSPEC.VSEX1      IS ''title'||
+                                                       ' // titre''');
+do_sql_stmnt('comment on column GSSPEC.VSEX2      IS ''title'||
+                                                       ' // titre''');
+do_sql_stmnt('comment on column GSSPEC.VSEX3      IS ''title'||
+                                                       ' // titre''');
+do_sql_stmnt('comment on column GSSPEC.LGRP       IS ''length grouping'||
+                                                       ' // titre''');
+do_sql_stmnt('comment on column GSSPEC.LMIN       IS ''Minimum length'||
+                                                       ' // titre''');
+do_sql_stmnt('comment on column GSSPEC.LMAX       IS ''Maximum length'||
+                                                             ' // titre''');
+do_sql_stmnt('comment on column GSSPEC.MATREQ     IS ''Aging materials required'||
+                                                         ' // Materieux pour détermination de l&rsquo;âge requis''');
+do_sql_stmnt('comment on column GSSPEC.SAMPREQ    IS ''Samples required'||
+                                                         ' // Échantillons requis ''');
+do_sql_stmnt('comment on column GSSPEC.MLEN       IS ''title'||
+                                                        ' // titre''');
+do_sql_stmnt('comment on column GSSPEC.LENWGTA    IS ''Length weight regression coefficient a'||
+                                                     ' // coefficient de régression  a pour longeur et poids''');
+do_sql_stmnt('comment on column GSSPEC.LENWGTB    IS ''Length weight regression coefficient b'||
+                                                     ' // coefficient de régression  b pour longeur et poids''');
+do_sql_stmnt('comment on column GSSPEC.LFSEXED    IS ''Length frequency counts by sex (Y/N)'||
+                                                             ' // Fréquence de longueur par sexe (Y/N)''');
+do_sql_stmnt('comment on column GSSPEC.MAXWGT     IS ''Maximum weight for species'||
+                                                             ' // Poid maximum pour l&rsquo;espèce''');
+
+do_sql_stmnt('comment on table GSSPECIES   is ''Species codes, scientific names and english common names '||
+                                              ' // Codes d&rsquo;espèces, noms scientifiques et noms communs''');
+do_sql_stmnt('comment on column GSSPECIES.SPEC     IS ''title'||
+                                                             ' // titre''');
+do_sql_stmnt('comment on column GSSPECIES.COMM     IS ''Species common names'||
+                                                             ' // Noms commun des espèces''');
+do_sql_stmnt('comment on column GSSPECIES.CODE     IS ''Species codes (BIO/SABS/GFC)'||
+                                                             ' // Code d&rsquo;espèce (BIO/SABS/GFC)''');
+do_sql_stmnt('comment on column GSSPECIES.NMFS     IS ''Species codes (NMFS - USA)'||
+                                                             ' // Codes d&rsquo;espèces (NMFS - USA)''');
+do_sql_stmnt('comment on column GSSPECIES.ENTR     IS ''Date entered'||
+                                                             ' // date d&rsquo;insertion ''');
+
+END;
+
+PROCEDURE do_sql_stmnt(
+                Str_in   IN      varchar2)
+/*
+PROCEDURE Execute a single SQL statement
+
+Procedure Name:		do_sql_stmnt
+Author:				Pierre C. Brien
+Date Written:		2001/09/24
+Function:
+	This routine executes the SQL statement contained in the input string.
+
+Modification History (as Date YYYY/MM/DD  initials - change description):
+	2001/09/24		initial test version
+
+
+*/
+IS
+	cursor_handle           INTEGER := DBMS_SQL.OPEN_CURSOR;
+	dbms_sql_feedback       INTEGER;
+	success                 BOOLEAN := FALSE;
+BEGIN
+	DBMS_SQL.PARSE(cursor_handle,str_in,DBMS_SQL.NATIVE);
+	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+	DBMS_SQL.CLOSE_CURSOR(cursor_handle);
+END;
+
+
+PROCEDURE do_Grants(
+                Accts_in   IN      varchar2,
+                Oname_in   IN      varchar2,
+                Operm_in   IN      varchar2)
+/*
+PROCEDURE Grant permissions on Oracle Objects
+
+Procedure Name:		do_Grants
+Author:				Pierre C. Brien
+Date Written:		2002/04/03
+Function:
+	This routine will grant the desired permissions to a list of accounts if
+	these accounts exist on the local machine. This routine was created to provide
+	a general solution for permissions when the VDC is to be installed on a new
+	machine which may not have the full set of accounts.
+	There are 3 string (varchar2) parameters
+	1) Accounts is a list of account separated by the | (pipe) character. If this
+	    account exists the permissions will be granted.
+	2) Oracle Object Names - this is a list of object name separated by | (pipe) characters.
+	    The names are paired with the permissions list which follows.
+	3) Permissions to be granted for matching object. This list has a 1 to 1 pairing with
+	    the names list.
+
+Modification History (as Date YYYY/MM/DD  initials - change description):
+	2001/09/24		initial test version
+
+
+*/
+IS
+	cursor_handle           INTEGER := DBMS_SQL.OPEN_CURSOR;
+	dbms_sql_feedback       INTEGER;
+	success                 BOOLEAN := FALSE;
+	I                       INTEGER;
+	J                       INTEGER;
+	K                       INTEGER;
+	I2                      INTEGER;
+	J2                      INTEGER;
+	K2                      INTEGER;
+	I3                      INTEGER;
+	J3                      INTEGER;
+	K3                      INTEGER;
+	sql_in                  VARCHAR2(2000);
+
+	taccts_in               VARCHAR2(2000);
+	tacct                   VARCHAR2(30);
+	tOname_in               VARCHAR2(2000);
+	tOname                  VARCHAR2(30);
+	tOperm_in               VARCHAR2(2000);
+	tOperm                  VARCHAR2(30);
+
+    global_name_x           VARCHAR2(4000);
+    user_name_x             VARCHAR2(32);
+    datasource_x            VARCHAR2(32);
+    sys_acct_tbl_x          VARCHAR2(4000);
+    local_table             VARCHAR2(32);
+
+BEGIN
+    sys_acct_tbl_x := sys_acct_tbl('GSINF',global_name_x,user_name_x,local_table);
+
+    IF instr(global_name_x,'xGFC') = 0 THEN
+-- first make sure there is a terminating pipe
+    IF SUBSTR(Accts_in, LENGTH(Accts_in), 1) = '|' THEN
+        taccts_in := Accts_in;
+    ELSE
+        taccts_in := Accts_in||'|';
+    END IF;
+
+    IF SUBSTR(Oname_in, LENGTH(Oname_in), 1) = '|' THEN
+        tOname_in := Oname_in;
+    ELSE
+        tOname_in := Oname_in||'|';
+    END IF;
+
+    IF SUBSTR(Operm_in, LENGTH(Operm_in), 1) = '|' THEN
+        tOperm_in := Operm_in;
+    ELSE
+        tOperm_in := Operm_in||'|';
+    END IF;
+
+    I := 1;
+    WHILE I < LENGTH (taccts_in) LOOP
+        K := INSTR(taccts_in,'|',I);
+        tacct := SUBSTR(taccts_in,I, (K - I));
+        I := K + 1;
+        -- for this account process all of the permissions is it exists on this system
+        FOR iacct in (SELECT  * FROM all_users WHERE username = UPPER(tacct)) LOOP
+            I2 := 1;
+            I3 := 1;
+            WHILE I2 < LENGTH (tOname_in) LOOP
+                K2 := INSTR(tOname_in,'|',I2);
+                K3 := INSTR(tOperm_in,'|',I3);
+                tOname := SUBSTR(tOname_in,I2, (K2 - I2));
+                tOperm := SUBSTR(tOperm_in,I3, (K3 - I3));
+                I2 := K2 + 1;
+              /*   I3 := K3 + 1; use if looping on privilage */
+                sql_in := 'GRANT '||UPPER(tOperm)||' ON '||UPPER(tOname)||' TO '||UPPER(tacct);
+            	DBMS_SQL.PARSE(cursor_handle,sql_in,DBMS_SQL.NATIVE);
+            	dbms_sql_feedback := DBMS_SQL.EXECUTE (cursor_handle);
+            	DBMS_OUTPUT.PUT_LINE (sql_in);
+
+            END LOOP;
+        END LOOP;
+    END LOOP;
+    END IF;
+	DBMS_SQL.CLOSE_CURSOR(cursor_handle);
+END;
+BEGIN
+     /*  replace hard coded with select
+     User_List := 'mflib|vdc|harrisle|abundy|laurinollim|mohn|choij|';
+     */
+     SELECT USER_List into User_List From MV_USER_LIST;
+END;
+/
+
+
+
+
+
+-------------------------------
+
+
+
+--- R BRANTON 2001/09/12 
+--- Modified R Branton 2001/09/26 - selection by sex                        
+--                       
+--  Name: gssizecomp 
+--  Purpose: stratified size composition for a selected stock 
+--  Parameters: stock='ALL' species='HADDOCK' series='SUMMER' startyr=1970 endyr=2002 
+--               Units = ROUND(abun/y.tunits,2) average_number sex=            
+
+
+
+SELECT y.year, y.tunits, l.fsex, l.flen length,  ROUND(abun/y.tunits,2) average_number
+
+FROM 
+	( SELECT lf.year, lf.fsex, lf.flen,
+        ROUND(SUM(st.area/( (41./1000.0/6080.2)*1.75/1000.0)*lf.avgstdclen/1000000.0)) abun
+		
+		FROM nwags.gsslf_mv lf, nwags.gsstratum st
+		
+		WHERE  		lf.strat=st.strat 
+       		AND 	lf.strat in (	SELECT DISTINCT strat 
+					FROM mflib.gsmgt 
+					WHERE unit IN ('ALL')	)
+         	AND 	lf.spec = (	SELECT research 
+					FROM species_codes 
+					WHERE common = 'HADDOCK')
+         	AND 	lf.series = 'SUMMER' 
+			AND 	lf.year between 1970 AND 2002
+       
+		GROUP BY year, lf.fsex, lf.flen
+	) l,
+       
+	( SELECT i.year, SUM (ROUND (floor (s.area/(1.75*(41/6080.2) ) +.5) ) ) tunits
+       	
+		FROM nwags.gssinf_mv i, nwags.gsstratum s
+       	
+		WHERE	i.strat=s.strat 
+       		AND i.strat in ( 	SELECT DISTINCT strat 
+								FROM mflib.gsmgt 
+								WHERE unit IN ('ALL')	)
+			AND i.series = 'SUMMER' 
+			AND i.year between 1970 AND 2002
+       
+		GROUP BY i.year
+	) y
+       
+WHERE y.year=l.year
+
+UNION
+
+SELECT 0, 0, 0, flen, 0
+
+FROM 	gs_lengths l, 
+		nwags.gsspec_mv r, 
+		nwags.gsspec s
+	
+WHERE 		s.spec=r.spec 
+	AND 	l.class=s.lgrp 
+	AND 	l.flen BETWEEN r.lmin and r.lmax
+	AND 	s.spec = (	SELECT research 
+						FROM species_codes 
+						WHERE common = 'HADDOCK'	)
+ORDER BY 1, 2, 3, 4;
+
+
+
+**********************
+
+-- 
+--  Name: gsnumbersandweights
+--  Purpose: stratified estimates of numbers and weights for a selected stock 
+--  Parameters: stock='ALL' species='HADDOCK' series='SUMMER' startyr=1970 endyr=2002
+--
+
+SELECT 
+       i.year, SUM(i.tunits) tunits, SUM(ntows) sets,
+       ROUND(SUM(i.tunits*NVL(c.avgstdno,0))/SUM(i.tunits),2) avg_number,
+       ROUND(SUM(i.tunits*NVL(c.avgstdwgt,0))/SUM(i.tunits),2) avg_weight,
+       ROUND(SUM(i.tunits*NVL(c.avgstdno,0))/1000000,2) abundance,
+       ROUND(SUM(i.tunits*NVL(c.avgstdwgt,0))/1000,2) biomass,
+       ROUND(SUM(i.temp_area*i.avgbtemp)/SUM(i.temp_area),1) bottom_temperature,
+       ROUND(SUM(i.sal_area*i.avgbsal)/SUM(i.sal_area),1) bottom_salinity
+       
+FROM (	SELECT year, strat, avgstdwgt, avgstdno
+       	FROM nwags.gsscat_mv
+       	WHERE series='SUMMER'
+       	AND spec=(		SELECT research 
+	  					FROM species_codes 
+						WHERE common='HADDOCK')
+        AND strat in (	SELECT DISTINCT strat 
+	   					FROM mflib.gsmgt 
+						WHERE unit=('ALL') )
+		AND year BETWEEN 1970 AND 2002
+	) c,
+       
+	(	SELECT year, i.strat, ROUND(area/(1.75*(41/6080.2))) tunits, ntows,
+           	DECODE(NVL(avgbtemp, -99),-99,NULL,area) temp_area, avgbtemp,
+           	DECODE(NVL(avgbsal, -99),-99,NULL,area) sal_area, avgbsal
+        FROM 	nwags.gssinf_mv i,
+           		nwags.gsstratum s
+        WHERE series='SUMMER'
+        AND i.strat in (SELECT DISTINCT strat 
+	   					FROM mflib.gsmgt 
+						WHERE unit=('ALL') )
+        AND s.strat=i.strat
+		AND year BETWEEN 1970 AND 2002
+	) i
+       
+WHERE c.strat(+)=i.strat
+AND c.year(+)=i.year
+GROUP BY i.year
+ORDER BY 1;
+
+
+
+-------- from Duplisea  ---------------
+
+/* this series of queries makes the biomass, numbers, richness and diversity size spectra from survey
+data and joins into one final table. by exchanging "lg2weight" and "loggrp" one can compute the size spectrum
+based on log2 body size categories or 5cm fish length categories*/
+
+proc sql;
+
+create table tmp.alldata2 as
+select series, year, strat, tunits, ntows, spec, fsex, flen, lgrp, wgt, lg2wgt, biomass, area, nafo,  
+       avgstdcl as number, 
+       varstdcl as variance, 
+       tunits*avgstdcl as wgtnum,
+       biomass*tunits as wgtbms
+from tmp.data;
+
+/* create area weighted average biomass and numbers '4VN' Cabot Strait,'4VSW' Eastern SS,
+'4X' Western SS,'5Z' Georges Bank. Also it is necessary to specify the series 'SUMMER' or 'GEORGES'*/
+
+/* JAE, GIVEN YOU HAVE A FILE LIKE I SENT YOU IN EXCEL, YOU SHOULD BE ABLE TO START AT THIS POINT */
+
+create view Y.size0.N.B as
+select year,lgrp,sum(wgtnum) as number, sum(wgtbms) as biomass
+from tmp
+where nafo= '4X' and
+series='SUMMER'
+group by year,lgrp;
+
+create view Y.strata.meantunits as
+select year,strat,mean(tunits) as tunits
+from tmp.alldata
+where nafo='4X' and
+series='SUMMER'
+group by year,strat;
+
+create view Y.tottunits as
+select year,sum(tunits) as totunits
+from Y.strata.meantunits
+group by year;
+
+create view Y.N.B as
+select a.year,lgrp, number/totunits as number,biomass/totunits as biomass
+from Y.size0.N.B a, Y.tottunits b
+where a.year=b.year;
+
+/*
+## it is necessary to compute a stratum total variance using weighting because the input variances are
+## already average in the stratum but are species specific and we want a variance for the combined community
+## but we do not have individual tow data to do this.
+
+
+## note that here varbms and varnum are not refering to the variance of biomass and numbers but the 
+## total size class variance when the individual species are weighted by either their biomass  of 
+## numbers contribution to the total.
+*/
+
+create view Y.strata.size0.tN.tB as 
+select year, strat, lgrp, sum (number) as totnum, sum (biomass) as totbms
+from tmp.alldata
+where nafo= '4X' and
+series='SUMMER'
+group by year, strat, lgrp;
+
+/* compute weighted variance of species i.e. individual contribution to community variance */
+
+create view Y.strata.tunits.ntows.sp.size0.N.B.nmass.bmass as
+select a.year,a.strat,tunits,ntows,spec,a.lgrp, number,biomass,variance*number/totnum as numwgt, variance*biomass/totbms as bmswgt
+from tmp.alldata a, Y.strata.size0.tN.tB b
+where a.year=b.year and
+a.strat=b.strat and
+a.lgrp=b.lgrp and
+nafo= '4X' and
+series='SUMMER';
+
+/* compute the community wide variance by stratum */
+
+create view Y.strata.size0.N.B.vN.vB.tunits.ntows as
+select year,strat,mean(tunits) as tunits, mean(ntows) as ntows, lgrp,sum(number) as number, 
+	sum (biomass) as biomass, sum(numwgt) as varnum,sum(bmswgt) as varbms
+from Y.strata.tunits.ntows.sp.size0.N.B.nmass.bmass
+group by year,strat,lgrp;
+
+/* _____________ now compute the area weighted community wide variance of average number at size */
+
+create view tmp.vss4X as
+select year,lgrp,sum((tunits*(tunits-ntows)*varbms)/ntows)/(sum(tunits)*sum(tunits)) as variance
+from Y.strata.size0.N.B.vN.vB.tunits.ntows
+group by year, lgrp;
+
+
+/*__________________________________________________________________________
+
+create the diversity and species richness size spectra where the number of species in each size 
+class is counted, i.e. not just one point in the spectrum for each species.
+
+______________________________________________________________________________*/
+
+/* RICHNESS SIZE SPECTRUM*/
+
+create view tmp.rtmp1 as
+select year,strat,lgrp,count (distinct spec)* mean(tunits) as wrchnss
+from tmp.alldata
+where nafo= '4X' and
+series='SUMMER'
+group by year,strat,lgrp;
+
+create view tmp.rtmp11 as
+select year,lgrp,sum(wrchnss) as trich
+from tmp.rtmp1
+group by year, lgrp;
+
+create view tmp.rtmp2 as
+select year,strat,mean(tunits) as tunits
+from tmp.alldata
+where nafo='4X' and
+series='SUMMER'
+group by year,strat;
+
+create view tmp.rtmp3 as
+select year,sum(tunits) as totunits
+from tmp.rtmp2
+group by year;
+
+create view tmp.rss4X as
+select a.year,lgrp, trich/totunits as richness
+from tmp.rtmp11 a, tmp.rtmp3 b
+where a.year=b.year;
+
+/* SHANNON DIVERSITY OR EVENESS SIZE SPECTRUM */
+
+	/* need to sum over sexes for eveness calculation */
+create view tmp.etmp01 as
+select year,strat,spec,lgrp,sum(wgtbms)/mean(tunits) as biomass, mean(tunits) as tunits
+from tmp.alldata
+where nafo='4X' and
+series='SUMMER'
+group by year,strat,spec,lgrp;
+
+create view tmp.etmp02 as
+select year, strat, lgrp, sum(biomass) as totbms
+from tmp.etmp01
+group by year, strat,lgrp;
+
+create view tmp.etmp03 as
+select a.year,a.strat,spec,a.lgrp,biomass/(totbms) as pctbms,tunits
+from tmp.etmp01 a, tmp.etmp02 b
+where a.year=b.year and
+a.strat=b.strat and
+a.lgrp=b.lgrp;
+
+create view tmp.etmp1 as
+select year,lgrp,sum(tunits*pctbms*log(pctbms)/log(2))*(-1) as wgtpi
+from tmp.etmp03
+group by year,lgrp;
+
+create view tmp.etmp2 as
+select year,strat,mean(tunits) as tunits
+from tmp.alldata
+where nafo='4X' and
+series='SUMMER'
+group by year,strat;
+
+create view tmp.etmp3 as
+select year,sum(tunits) as totunits
+from tmp.etmp2
+group by year;
+
+create view tmp.ess4X as
+select a.year,a.lgrp,a.wgtpi/b.totunits as swdiv
+from tmp.etmp1 a, tmp.etmp3 b
+where a.year=b.year;
+
+/*_______________________________________________
+join the size spectra table for biomass, variance, richness, 
+diversity to make a master table for the region 
+__________________________________________________*/
+
+create table tmp.l4X as
+select a.year,a.lgrp,number,biomass,variance,sqrt(variance) as stdev,richness,swdiv
+from Y.N.B a, tmp.vss4X b,tmp.rss4X c,tmp.ess4X d
+where a.year=b.year=c.year=d.year and
+a.lgrp=b.lgrp=c.lgrp=d.lgrp;
+
+
+drop view Y.size0.N.B;
+drop view Y.strata.meantunits;
+drop view Y.tottunits;
+drop view Y.N.B;
+drop view Y.strata.size0.tN.tB;
+drop view Y.strata.tunits.ntows.sp.size0.N.B.nmass.bmass;
+drop view Y.strata.size0.N.B.vN.vB.tunits.ntows;
+drop view tmp.vss4X;
+drop view tmp.rtmp1;
+drop view tmp.rtmp11;
+drop view tmp.rtmp2;
+drop view tmp.rtmp3;
+drop view tmp.rss4X;
+drop view tmp.etmp01;
+drop view tmp.etmp02;
+drop view tmp.etmp03;
+drop view tmp.etmp1;
+drop view tmp.etmp2;
+drop view tmp.etmp3;
+drop view tmp.ess4X;
+
+
+---------------------------------------
+
+
+------ flatten all data ....
+
+set pagesize 50000
+set arraysize 5000
+set linesize 500
+set colsep ,
+set pause off
+set tab off
+set term off
+set flush off
+spool /users/choij/q.out
+
+select  c.year, c.series, c.sdate, c.strat, c.slong, c.slat, c.totwgt, c.sampwgt, c.dist,
+        d.mission, d.setno,
+        d.spec species,
+        d.flen length,
+        d.fwt mass,
+	d.age, 
+	d.fmat mat,
+	d.fsex sex
+from    groundfish.gsdet  d,
+        ( select i.year, i.series, i.sdate, i.strat, i.type, i.slong, i.slat,
+                 cat.mission, cat.setno, cat.spec,
+                 cat.totwgt, cat.sampwgt, i.dist
+          from
+                groundfish.gscat cat,
+                ( select mission.year, mission.fk_series_id series, inf.setno,
+                         inf.mission, inf.sdate, inf.strat, inf.dist, inf.type,
+                         inf.slong, inf.slat
+                  from  groundfish.gsmission_list mission,
+                        groundfish.gsinf inf
+                  where inf.mission(+) = mission.pk_mission
+                ) i
+          where
+                cat.mission(+) = i.mission
+          and   cat.setno(+) = i.setno
+        ) c
+where   d.mission(+)=c.mission
+and     d.setno(+)=c.setno
+and     d.spec(+)=c.spec
+and     type=1
+and     year = 1970
+and     d.spec = 400;
+

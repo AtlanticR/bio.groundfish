@@ -1,0 +1,153 @@
+mysql -u jae -p
+
+# pass is .kropotkin.
+
+create database gs2003;
+
+use gs2003;
+
+drop table gsinf;
+create table gsinf
+(
+ mission varchar(10) not null,
+ setno smallint unsigned not null,
+ strat varchar(3) ,
+ slat decimal(6,2) unsigned,
+ slong decimal(6,2) unsigned,
+ area smallint unsigned,
+ dur tinyint unsigned,
+ dist decimal(4,2) unsigned,
+ speed decimal(4,2) unsigned,
+ dmin smallint unsigned,
+ dmax smallint unsigned,
+ type tinyint unsigned,
+ gear  tinyint unsigned,
+ primary key (mission, setno)
+)
+;
+
+load data
+	infile "/home/jae/data/groundfish/raw/gsinf.out"
+	into table gsinf
+	fields terminated by '\;'
+;
+
+
+drop table gsdet;
+create table gsdet
+(
+ mission varchar(10) not null,
+ setno smallint unsigned not null,
+ spec smallint unsigned not null,
+ fshno smallint unsigned,
+ flen smallint unsigned,
+ fsex tinyint unsigned,
+ fmat tinyint unsigned,
+ fwt smallint unsigned,
+ agmat tinyint unsigned,
+ age  tinyint unsigned,
+ index (mission, setno, spec)
+)
+;
+
+load data
+	infile "/home/jae/data/groundfish/raw/gsdet.out"
+	into table gsdet
+	fields terminated by '\;'
+;
+
+
+
+drop table gscat;
+create table gscat
+(
+ mission varchar(10) not null,
+ setno smallint unsigned not null,
+ spec smallint unsigned ,
+ sampwgt decimal(6,2) unsigned,
+ totwgt decimal(6,2) unsigned,
+ totno smallint unsigned,
+ calwt smallint unsigned,
+ index (mission, setno, spec)
+)
+;
+
+load data
+	infile "/home/jae/data/groundfish/raw/gscat.out"
+	into table gscat
+	fields terminated by '\;'
+;
+
+
+drop table gshyd;
+create table gshyd
+(
+ mission varchar(10) ,
+ setno smallint unsigned ,
+ sdepth decimal(6,2),
+ temp decimal(5,2),
+ sal decimal(5,3),
+ oxyml decimal(6,3),
+ index (mission, setno)
+)
+;
+
+load data
+	infile "/home/jae/data/groundfish/raw/gshyd.out"
+	into table gshyd
+	fields terminated by '\;'
+;
+
+drop table gsmission_list;
+create table gsmission_list
+(
+  survey_id varchar(14),
+  series varchar(16),
+  mission varchar(10) not null,
+  yr smallint unsigned not null,
+  vessel varchar(1),
+  cruno smallint unsigned,
+  sdate varchar(14),
+  edate varchar(14),
+  docs varchar(2),
+  docnames varchar(20),
+  index(mission,series)
+)
+;
+load data
+	infile "/home/jae/data/groundfish/raw/gsmission_list.out"
+	into table gsmission_list
+	fields terminated by '\;'
+;
+
+
+
+drop table taxonomy;
+create table taxonomy
+(
+ spec smallint unsigned not null,
+ namecom varchar(50) ,
+ taxalevel varchar(15) ,
+ namesci varchar(50) ,
+ suffix varchar(30) ,
+ noun varchar(50) ,
+ hgroup varchar(10),
+ cgroup varchar(10),
+ egroup varchar(10),
+ comm tinyint unsigned,
+ elasmo tinyint unsigned,
+ pel tinyint unsigned,
+ flat tinyint unsigned,
+ trad tinyint unsigned,
+ primary key (spec)
+)
+;
+
+load data
+	infile "/home/jae/data/groundfish/raw/spnames.out"
+	into table taxonomy
+	fields terminated by '\;'
+;
+
+
+
