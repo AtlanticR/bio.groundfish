@@ -629,12 +629,8 @@
         return (gshyd)
       }
       gsinf = groundfish.db( "gsinf" )
-      # gsinf$date = as.chron( gsinf$sdate )
       gsinf$timestamp = gsinf$sdate
       gsinf$yr = lubridate::year( gsinf$timestamp)
- #     gsinf$dayno = convert.datecodes( gsinf$date, "julian")
- #     gsinf$weekno = ceiling ( gsinf$dayno / 365 * 52 )
- #      gsinf$mon = ceiling ( gsinf$dayno / 365 * 12 )
       gsinf$longitude = gsinf$lon
       gsinf$latitude = gsinf$lat
       gsinf = gsinf[ , c( "id", "lon", "lat", "yr", "timestamp" ) ]
@@ -911,14 +907,7 @@
       oo = which( !is.finite( set$sdate)) # NED1999842 has no accompanying gsinf data ... drop it
       if (length(oo)>0) set = set[ -oo  ,]
 
-      # set$chron = as.chron(set$sdate)  ## chron is deprecated
       set$timestamp = set$sdate
-      # set$timestamp = as.POSIXct(set$sdate, origin=lubridate::origin)
-      # or simply: set$timestamp = set$sdate
-      # set$yr = convert.datecodes(set$chron, "year" )
-      # set$julian = convert.datecodes(set$chron, "julian")
-      # set$julian = lubridate::yday( set$sdate )
-      # set$sdate = NULL
 
       set = set[, c("id", "timestamp", "yr", "strat", "dist_km", "dist_pos",
                  "sakm2", "lon", "lat", "sdepth", "temp", "sal", "oxyml", "settype")]

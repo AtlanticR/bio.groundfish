@@ -2,7 +2,6 @@
   p = bio.bio.groundfish::load.bio.groundfish.environment()
 
   loc = file.path( project.datadirectory("bio.groundfish"), "data", "2006")
-  require(chron)
 
     load( file.path(loc,"gscat.rdata") )
     load( file.path(loc,"gsinf.rdata") )
@@ -16,11 +15,6 @@
     gstaxa = taxonomy.db( "gstaxa")
     set = merge(x=set, y=gstaxa, by=c("spec"), all.x=T, all.y=F, sort=F)
     rm (gstaxa)
-
-    set$chron = as.chron(set$sdate)
-    set$sdate = NULL
-    set$yr = convert.datecodes(set$chron, "year" )
-    set$julian = convert.datecodes(set$chron, "julian")
 
     vars = c("id", "spec", "namecom", "yr","totwgt","totno", "lon", "lat")
 

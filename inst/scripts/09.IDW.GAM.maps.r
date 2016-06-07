@@ -1,7 +1,7 @@
 
 
 p = bio.groundfish::load.groundfish.environment()
-p = bio.snowcrab::initialize.local.environment(p=p)
+p = bio.snowcrab::initialise.local.environment(p=p)
 
 # ----------------------------
 # 1 - define plot parameters

@@ -3,8 +3,7 @@ load.groundfish.environment = function( libs=NULL, p=NULL ) {
   if (is.null(p)) p = list()
 
   # libraries
-  # note chron is deprecated -- use lubridate as it is faster and more general
-  p$libs = RLibrary( "Hmisc", "date", "chron", "lubridate", "vegan", "fields", "sp",
+  p$libs = RLibrary( "Hmisc", "date", "lubridate", "vegan", "fields", "sp",
     "rgdal", "raster" , "INLA", "numDeriv", "lubridate", "geosphere", "parallel" )
 
   # helper functions
