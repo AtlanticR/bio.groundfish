@@ -152,7 +152,7 @@ scanmar.db = function( DS, p, nm=NULL, YRS=NULL, setid=NULL, debugid=NULL){
 
       #lubridate function
       nm$timestamp = ymd_hms(nm$tstamp)
-      tz( nm$timestamp )=tzone
+      tz( nm$timestamp ) = tzone
 
       keep=c("id", "nm_id", "vesel", "ltspeed", "ctspeed", "wingspread", "doorspread", "clearance",
              "opening", "fspd", "cspd", "latitude", "longitude", "depth", "settype", "timestamp", "yr"
