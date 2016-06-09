@@ -1,6 +1,6 @@
 
 # set up libs and bio functions
-p = bio.bio.groundfish::load.bio.groundfish.environment()
+p = bio.groundfish::load.groundfish.environment()
 
 # define location of local data files
 p$scanmar.dir = file.path( project.datadirectory("bio.groundfish"), "data", "nets", "Scanmar" )

@@ -43,9 +43,9 @@
 
       if ( DS %in% c( "spcodes.odbc.redo", "spcodes.redo", "gstaxa.redo" ) ) {
         require(RODBC)
-        connect=odbcConnect( oracle.bio.groundfish.server, uid=oracle.personal.user,
+        connect=odbcConnect( oracle.groundfish.server, uid=oracle.personal.user,
             pwd=oracle.personal.password, believeNRows=F)
-        spcodes =  sqlQuery(connect, "select * from bio.groundfish.gsspecies", as.is=T)
+        spcodes =  sqlQuery(connect, "select * from groundfish.gsspecies", as.is=T)
         odbcClose(connect)
         names(spcodes) =  tolower( names(spcodes) )
         save(spcodes, file=fnspc, compress=T)
@@ -76,13 +76,13 @@
       }
 
       require(RODBC)
-      connect=odbcConnect( oracle.bio.groundfish.server, uid=oracle.personal.user, pwd=oracle.personal.password, believeNRows=F)
+      connect=odbcConnect( oracle.groundfish.server, uid=oracle.personal.user, pwd=oracle.personal.password, believeNRows=F)
 
 			for ( YR in datayrs ) {
 				fny = file.path( fn.root, paste( YR,"rdata", sep="."))
         gscat = sqlQuery( connect,  paste(
                "select i.*, substr(mission,4,4) year " ,
-        "    from bio.groundfish.gscat i " ,
+        "    from groundfish.gscat i " ,
         "    where substr(MISSION,4,4)=", YR, ";"
         ) )
 
@@ -261,13 +261,13 @@
       }
 
       require(RODBC)
-      connect=odbcConnect( oracle.bio.groundfish.server, uid=oracle.personal.user, pwd=oracle.personal.password, believeNRows=F)
+      connect=odbcConnect( oracle.groundfish.server, uid=oracle.personal.user, pwd=oracle.personal.password, believeNRows=F)
 
 			for ( YR in datayrs ) {
 				fny = file.path( fn.root, paste( YR,"rdata", sep="."))
         gsdet = sqlQuery( connect,  paste(
         "select i.*, substr(mission,4,4) year" ,
-        "    from bio.groundfish.gsdet i " ,
+        "    from groundfish.gsdet i " ,
         "    where substr(mission,4,4)=", YR, ";"
         ) )
         names(gsdet) =  tolower( names(gsdet) )
@@ -346,12 +346,12 @@
       }
 
       require(RODBC)
-      connect=odbcConnect( oracle.bio.groundfish.server, uid=oracle.personal.user, pwd=oracle.personal.password, believeNRows=F)
+      connect=odbcConnect( oracle.groundfish.server, uid=oracle.personal.user, pwd=oracle.personal.password, believeNRows=F)
 
 			for ( YR in datayrs ) {
 				fny = file.path( fn.root, paste( YR,"rdata", sep="."))
         gsinf = sqlQuery( connect,  paste(
-        "select * from bio.groundfish.gsinf where EXTRACT(YEAR from SDATE) = ", YR, ";"
+        "select * from groundfish.gsinf where EXTRACT(YEAR from SDATE) = ", YR, ";"
         ) )
         names(gsinf) =  tolower( names(gsinf) )
         save(gsinf, file=fny, compress=T)
@@ -514,13 +514,13 @@
       }
 
       require(RODBC)
-      connect=odbcConnect( oracle.bio.groundfish.server, uid=oracle.personal.user, pwd=oracle.personal.password, believeNRows=F)
+      connect=odbcConnect( oracle.groundfish.server, uid=oracle.personal.user, pwd=oracle.personal.password, believeNRows=F)
 
 			for ( YR in datayrs ) {
 				fny = file.path( fn.root, paste( YR,"rdata", sep="."))
         gshyd = sqlQuery( connect,  paste(
         "select i.*, j.YEAR " ,
-        "    from bio.groundfish.gshyd i, bio.groundfish.gsmissions j " ,
+        "    from groundfish.gshyd i, groundfish.gsmissions j " ,
         "    where i.MISSION(+)=j.MISSION " ,
         "    and YEAR=", YR, ";"
         ) )
@@ -652,9 +652,9 @@
         return (gsstratum)
       }
       require(RODBC)
-      connect=odbcConnect( oracle.bio.groundfish.server, uid=oracle.personal.user,
+      connect=odbcConnect( oracle.groundfish.server, uid=oracle.personal.user,
           pwd=oracle.personal.password, believeNRows=F)
-      gsstratum =  sqlQuery(connect, "select * from bio.groundfish.gsstratum", as.is=T)
+      gsstratum =  sqlQuery(connect, "select * from groundfish.gsstratum", as.is=T)
       odbcClose(connect)
       names(gsstratum) =  tolower( names(gsstratum) )
       save(gsstratum, file=fn, compress=T)
@@ -673,9 +673,9 @@
         return (gsgear)
       }
       require(RODBC)
-      connect=odbcConnect( oracle.bio.groundfish.server, uid=oracle.personal.user,
+      connect=odbcConnect( oracle.groundfish.server, uid=oracle.personal.user,
           pwd=oracle.personal.password, believeNRows=F)
-      gsgear =  sqlQuery(connect, "select * from bio.groundfish.gsgear", as.is=T)
+      gsgear =  sqlQuery(connect, "select * from groundfish.gsgear", as.is=T)
       odbcClose(connect)
       names(gsgear) =  tolower( names(gsgear) )
       save(gsgear, file=fn, compress=T)
@@ -696,7 +696,7 @@
         return (gscoords)
       }
       require(RODBC)
-      connect=odbcConnect( oracle.bio.groundfish.server, uid=oracle.personal.user,
+      connect=odbcConnect( oracle.groundfish.server, uid=oracle.personal.user,
           pwd=oracle.personal.password, believeNRows=F)
       coords = sqlQuery(connect, "select * from mflib.mwacon_mapobjects", as.is=T)
       odbcClose(connect)
@@ -716,9 +716,9 @@
         return (gslist)
       }
       require(RODBC)
-      connect=odbcConnect( oracle.bio.groundfish.server, uid=oracle.personal.user,
+      connect=odbcConnect( oracle.groundfish.server, uid=oracle.personal.user,
           pwd=oracle.personal.password, believeNRows=F)
-      gslist = sqlQuery(connect, "select * from bio.groundfish.gs_survey_list")
+      gslist = sqlQuery(connect, "select * from groundfish.gs_survey_list")
       odbcClose(connect)
       names(gslist) =  tolower( names(gslist) )
       save(gslist, file=fn, compress=T)
@@ -737,9 +737,9 @@
       }
 
       require(RODBC)
-      connect=odbcConnect( oracle.bio.groundfish.server, uid=oracle.personal.user,
+      connect=odbcConnect( oracle.groundfish.server, uid=oracle.personal.user,
           pwd=oracle.personal.password, believeNRows=F)
-        gsmissions = sqlQuery(connect, "select MISSION, VESEL, CRUNO from bio.groundfish.gsmissions")
+        gsmissions = sqlQuery(connect, "select MISSION, VESEL, CRUNO from groundfish.gsmissions")
         odbcClose(connect)
         names(gsmissions) =  tolower( names(gsmissions) )
         save(gsmissions, file=fnmiss, compress=T)

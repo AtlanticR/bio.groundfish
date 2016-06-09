@@ -1,5 +1,5 @@
 
-  p = bio.bio.groundfish::load.bio.groundfish.environment()
+  p = bio.groundfish::load.groundfish.environment()
 
   data.location = file.path( project.datadirectory("bio.groundfish"), "data", "2014")
   set =  groundfish.db( "set.complete" )

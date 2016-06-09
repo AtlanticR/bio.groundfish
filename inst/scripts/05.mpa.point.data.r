@@ -1,5 +1,5 @@
 
-p = bio.bio.groundfish::load.bio.groundfish.environment( "BIOsurvey")
+p = bio.groundfish::load.groundfish.environment( "BIOsurvey")
 
 p$strat=440:495
 p$series =c('summer')# p$series =c('4vswcod');p$series =c('georges')
@@ -14,7 +14,7 @@ p$by.sex = F
 #out = groundfish.db(DS='gsdet.spec.redo',p=p)
 p$alpha = 0.05
 
-#out = bio.groundfish.analysis(DS='ab.redo',p=p)
+#out = groundfish.analysis(DS='ab.redo',p=p)
 #MPA functional groups
 p$functional.groups = F
 yy = list()
@@ -42,10 +42,10 @@ p$clusters = c( rep( "localhost", 7) )
 
 p = make.list(list(v=p$species, yrs=p$years.to.estimate),Y=p)
 p$runs = p$runs[order(p$runs$v),]
-#aout= bio.groundfish.analysis(DS='stratified.estimates.redo',p=p)
+#aout= groundfish.analysis(DS='stratified.estimates.redo',p=p)
 
-aout= bio.groundfish.analysis(DS='stratified.estimates',p=p)
-st.out = bio.groundfish.analysis(DS='species.set.data',p=p)
+aout= groundfish.analysis(DS='stratified.estimates',p=p)
+st.out = groundfish.analysis(DS='species.set.data',p=p)
 
   	  st.out$lat = st.out$slat/100
       st.out$lon = st.out$slong/100 * -1

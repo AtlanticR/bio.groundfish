@@ -1,5 +1,5 @@
 
-p = bio.bio.groundfish::load.bio.groundfish.environment("BIOsurvey")
+p = bio.groundfish::load.groundfish.environment("BIOsurvey")
 
 fp = file.path(project.datadirectory('bio.groundfish'),"analysis")
 p$strat=490:495
@@ -16,7 +16,7 @@ p$sex = 1# male female berried c(1,2,3)
 #out = groundfish.db(DS='gsdet.spec.redo',p=p)
 p$alpha = 0.05
 
-#out = bio.groundfish.analysis(DS='ab.redo',p=p)
+#out = groundfish.analysis(DS='ab.redo',p=p)
 #MPA functional groups
 p$functional.groups = F
 
@@ -32,21 +32,21 @@ p$clusters = c( rep( "localhost", 7) )
 
 p = make.list(list(v=p$species, yrs=p$years.to.estimate),Y=p)
 p$runs = p$runs[order(p$runs$v),]
-#parallel.run(bio.groundfish.analysis,DS='stratified.estimates.redo',p=p,specific.allocation.to.clusters=T) #silly error arisingexit
+#parallel.run(groundfish.analysis,DS='stratified.estimates.redo',p=p,specific.allocation.to.clusters=T) #silly error arisingexit
 
 #not finished
 
-aout= bio.groundfish.analysis(DS='stratified.estimates.redo',p=p)
+aout= groundfish.analysis(DS='stratified.estimates.redo',p=p)
 
 #habitat associations
 p$strata.files.return =T
 p$plot.name = 'white.hake.4vw.habitat.associations.pdf'
-aout= bio.groundfish.analysis(DS='stratified.estimates.redo',p=p)
+aout= groundfish.analysis(DS='stratified.estimates.redo',p=p)
 figure.habitat.associations(aout,p=p)
 
 #redo a's and b's
 p$alpha = 0.05
-out = bio.groundfish.analysis(DS='ab.redo',p=p)
+out = groundfish.analysis(DS='ab.redo',p=p)
 
 
 #figure stratified analysis Note--the values after comments are the other options

@@ -1,5 +1,5 @@
 
-  p = bio.bio.groundfish::load.bio.groundfish.environment()
+  p = bio.groundfish::load.groundfish.environment()
 
 	gs.datayear = 2009
 	data.dir = file.path( project.datadirectory("bio.groundfish"), "data", gs.datayear )
