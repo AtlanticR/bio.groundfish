@@ -5,7 +5,7 @@
 # ------------------  Common initialisation for groundfish
 # ------------------
 
-p = bio.groundfish::load.groundfish.environment()
+  p = bio.groundfish::load.groundfish.environment()
 
 # not too many as it has high memory requirements
 # clusters=c("tethys", "tethys", "io", "io", "io" )

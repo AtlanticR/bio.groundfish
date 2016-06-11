@@ -387,13 +387,17 @@
       # fix some time values that have lost the zeros due to numeric conversion
       gsinf$time = as.character(gsinf$time)
 
-      tzone = "America/Halifax"  ## need to verify if this is correct
+      tz.odbc = "America/Halifax"  ## need to verify if this is correct
+      tz.groundfish = "UTC"
 
       # by default it should be the correct timezone ("localtime") , but just in case
-      tz( gsinf$sdate) = tzone
+      tz( gsinf$sdate) = tz.odbc
+      gsinf$sdate = with_tz( gsinf$sdate, tz.groundfish )
 
       gsinf$edate = gsinf$etime
-      tz( gsinf$edate) = tzone
+      tz( gsinf$edate) = tz.odbc
+      gsinf$edate = with_tz( gsinf$edate, tz.groundfish )
+
 
       # fix sdate - edate inconsistencies .. assuming sdate is correct
       gsinf$timediff.gsinf = gsinf$edate - gsinf$sdate

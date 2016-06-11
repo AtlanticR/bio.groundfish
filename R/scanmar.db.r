@@ -146,13 +146,8 @@ scanmar.db = function( DS, p, nm=NULL, YRS=NULL, setid=NULL, debugid=NULL){
       i = which( is.na( nm$time))
       if (length(i)>0) nm = nm[ -i, ]
 
-      nm$tstamp= paste( nm$date, nm$time )
-
-      tzone = "America/Halifax"  ## need to verify if this is correct ...  yes, all data stored in this TZ
-
-      #lubridate function
-      nm$timestamp = ymd_hms(nm$tstamp)
-      tz( nm$timestamp ) = tzone
+      nm$timestamp = ymd_hms( paste( nm$date, nm$time ), tz="America/Halifax" ) ## need to verify if this is correct ... JC: yes, all data stored in this TZ
+      nm$timestamp = with_tz( nm$timestamp, "UTC" )  # keep all internal operations in UTC
 
       keep=c("id", "nm_id", "vesel", "ltspeed", "ctspeed", "wingspread", "doorspread", "clearance",
              "opening", "fspd", "cspd", "latitude", "longitude", "depth", "settype", "timestamp", "yr"
@@ -181,7 +176,6 @@ scanmar.db = function( DS, p, nm=NULL, YRS=NULL, setid=NULL, debugid=NULL){
           nm$timestamp[jj] = tstamp
         }
       }
-
 
       w = which(!is.finite(nm$cspd))
       nm$ctspeed[w]=nm$cspd[w]
@@ -307,7 +301,7 @@ scanmar.db = function( DS, p, nm=NULL, YRS=NULL, setid=NULL, debugid=NULL){
 
     gf0$nm_id = NA
     gf0$nm_id0 = NA   # this stores the initial id  ... perley data and >=2015 data have hand matched data .. but many are not matched correctly ..
-    gf0$timestamp = gf0$sdate
+    gf0$timestamp = gf0$sdate   # UTC
     gf0$min.distance = NA
     gf0$time.difference = NA
     gf0$depth.difference = NA
@@ -922,7 +916,8 @@ scanmar.db = function( DS, p, nm=NULL, YRS=NULL, setid=NULL, debugid=NULL){
         # another hack .. probably best to move these into another function to keep it contained...
         if (id=="TEL2004530.85") {
           # erratic recording with gaps and large noise signatures...
-          baddata = which( nmii$timestamp < "2004-07-27 00:37:00 ADT" | nmii$timestamp > "2004-07-27 01:09:00 ADT" )
+          baddata = which( nmii$timestamp < with_tz( ymd_hms("2004-07-27 00:37:00", tz="America/Halifax"), "UTC")
+                         | nmii$timestamp > with_tz( ymd_hms("2004-07-27 01:09:00", tz="America/Halifax"), "UTC"))
           nmii$depth[ baddata ] = NA
         }
 
