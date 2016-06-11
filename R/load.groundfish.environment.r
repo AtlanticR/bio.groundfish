@@ -1,4 +1,4 @@
-load.groundfish.environment = function( libs=NULL, p=NULL ) {
+load.groundfish.environment = function( libs=NULL, p=NULL, assessment.year=NULL  ) {
 
   if (is.null(p)) p = list()
 
@@ -15,8 +15,17 @@ load.groundfish.environment = function( libs=NULL, p=NULL ) {
 
   p$R.gs = file.path( project.datadirectory("bio.groundfish"), "R" )
 
+  if (is.null (assessment.year ) ) {
+    p$assessment.year = lubridate::year( Sys.Date() )
+  } else {
+    p$assessment.year = assessment.year
+  }
+
   setwd( p$R.gs )
-  assign("R.gs", p$R.gs,  envir=parent.frame() ) # export to calling namespace .. should not be needed but just in case
+
+  # export to calling namespace .. should not be needed but just in case
+  assign("R.gs", p$R.gs,  envir=parent.frame() )
+
   return( p )
 
 }

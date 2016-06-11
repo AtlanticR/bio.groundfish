@@ -929,7 +929,9 @@ scanmar.db = function( DS, p, nm=NULL, YRS=NULL, setid=NULL, debugid=NULL){
         # two depth sensors were used simultaneously but they are not calibrated!
         # remarkably hard to filter this out
         # send a trigger to bottom.contact to operate on this properly
-        if ( id %in% p$id.double.depth.sensors ) bcp$double.depth.sensors = TRUE
+
+        id.double.depth.sensors = paste( "NED2015002", c( 47:64 ), sep="." )
+        if ( id %in% id.double.depth.sensors ) bcp$double.depth.sensors = TRUE
         if ( id %in% p$problem.sets ) next()
 
         bc = NULL #
