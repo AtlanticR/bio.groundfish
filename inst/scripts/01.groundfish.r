@@ -23,9 +23,9 @@
 # ---------
 # primary data sets
 # these should be run on a windows machine: NULL values get mangled for some reason
-  p$current.year = 2015
+  p$year.assessment = 2015
 
-  odbc.data.yrs=1970:p$current.year
+  odbc.data.yrs=1970:p$year.assessment
     #  <<<<< ---- DATA YEAR can be a single year update too
     # --- for import of data year only
 
