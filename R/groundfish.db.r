@@ -1061,7 +1061,7 @@
     if (DS %in% c("set.partial") ) {
 
       # this is everything in bio.groundfish just prior to the merging in of habitat data
-      # useful for indicators db as the habitat data are brough in separately (and the rest of
+      # useful for survey.db as the habitat data are brough in separately (and the rest of
       # set.complete has not been refactored to incorporate the habitat data
 
       set = groundfish.db( "set.base" )
