@@ -59,6 +59,7 @@
     # define location of local data files
     p$scanmar.dir = file.path( project.datadirectory("bio.groundfish"), "data", "nets", "Scanmar" )
     p$marport.dir = file.path( project.datadirectory("bio.groundfish"), "data", "nets", "Marport" )
+    p$netmens.dir = file.path( project.datadirectory("bio.groundfish"), "data", "nets", "netmensuration" )
 
     # pick the year to process:
     # 2009 is the first year with set logs from scanmar available .. if more are found, alter this date
@@ -84,6 +85,8 @@
 
     # netmind base data filtered for fishing periods .. not really used except for some plots
     scanmar.db( DS="scanmar.filtered.redo",  p=p )
+
+    figures.netmensuration( DS="all", p=p, outdir=p$netmens.dir  )
 
     # see scripts/99.example.netmensuration.r for some additional figures, etc.
 
