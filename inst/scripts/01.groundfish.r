@@ -1,26 +1,9 @@
 
-# the following create the basic datafiles from the database
-
-
-# ------------------  Common initialisation for groundfish
-
   p = bio.groundfish::load.groundfish.environment(assessment.year = 2015)
 
-# not too many as it has high memory requirements
-# clusters=c("tethys", "tethys", "io", "io", "io" )
-# clusters=c("tethys", "tethys", "tethys", "tethys", "lotka")
-# clusters=rep("kaos",10)
-  p$clusters = rep("localhost", detectCores() )
-
-# choose taxa or taxonomic groups of interest
-
-
-# ---------
-# primary data sets
-# these should be run on a windows machine: NULL values get mangled for some reason
-
-  odbc.data.yrs=1970:p$assessment.year  #  <<<<< ---- DATA YEAR can be a single year update too
-  groundfish.db( DS="odbc.redo", datayrs=odbc.data.yrs )
+  # these should be run on a windows machine: NULL values get mangled for some reason
+  # p$odbc.data.yrs=1970:p$assessment.year  #  <<<<< ---- DATA YEAR can be a single year update too
+  groundfish.db( DS="odbc.redo", datayrs=p$odbc.data.yrs )
 
   refresh.bio.species.codes = FALSE
   if (refresh.bio.species.codes ) {
@@ -36,25 +19,17 @@
     taxonomy.db( "parsimonious.redo" )
   }
 
-
   groundfish.db( DS="gscat.redo" )
   groundfish.db( DS="gsdet.redo" )
   groundfish.db( DS="gsinf.redo" )
-
 
   netmensuration.do = FALSE
   if ( netmensuration.do ) {
     # done here as it requires an up-to-date gsinf
 
-    # define location of local data files
-    p$scanmar.dir = file.path( project.datadirectory("bio.groundfish"), "data", "nets", "Scanmar" )
-    p$marport.dir = file.path( project.datadirectory("bio.groundfish"), "data", "nets", "Marport" )
-    p$netmens.dir = file.path( project.datadirectory("bio.groundfish"), "data", "nets", "netmensuration" )
-
     # pick the year to process:
-    # 2009 is the first year with set logs from scanmar available .. if more are found, alter this date
-    # p$netmensuration.years = p$assessment.year # for a single year update
-    p$netmensuration.years = c(1990:1992, 2004:p$assessment.year)  # or ..
+    p$netmensuration.years = p$assessment.year # for a single year update
+    # p$netmensuration.years = c(1990:1992, 2004:p$assessment.year)  # or ..
 
     # set id's that should be skipped:: corrupted/improper due to faulty sensor data, etc.
     p$problem.sets = c("NED2014018.27", "NED2014101.11", "NED2014101.12", "NED2014101.13",  "NED2014101.14",
@@ -64,23 +39,21 @@
     scanmar.db( DS="basedata.redo", p=p )        # Assimilate Scanmar files in raw data saves *.set.log files
     scanmar.db( DS="basedata.lookuptable.redo", p=p ) # match modern data to GSINF positions and extract Mission/trip/set ,etc
     scanmar.db( DS="sanity.checks.redo",  p=p )      # QA/QC of data
-
     scanmar.db( DS="bottom.contact.redo",  p=p )  # bring in estimates of bottom contact times from scanmar
-
-    # swept areas are computed in bottom.contact.redo ..
-    # this step estimates swept area for those where there was insufficient data to compute SA directly from logs,
-    # estimate via approximation using speed etc.
-    scanmar.db( DS="sweptarea.redo",  p=p )
-    figures.netmensuration( DS="all", p=p )
 
     # netmind base data filtered for fishing periods .. not really used except for some plots
     scanmar.db( DS="scanmar.filtered.redo",  p=p )
 
-    figures.netmensuration( DS="all", p=p, outdir=p$netmens.dir  )
+    figures.netmensuration( DS="all", p=p )
+    # figures.netmensuration( DS="all", p=p, outdir=p$netmens.dir  )
     # see scripts/99.example.netmensuration.r for some additional figures, etc.
 
   }
 
+  # swept areas are computed in bottom.contact.redo ..
+  # this step estimates swept area for those where there was insufficient data to compute SA directly from logs,
+  # estimate via approximation using speed etc.
+  groundfish.db( DS="sweptarea.redo",  p=p )  ## this is actually gsinf with updated data, etc.
 
   groundfish.db( DS="gshyd.profiles.redo" )
   groundfish.db( DS="gshyd.redo" )
@@ -91,7 +64,7 @@
 
 # ---------
 # merged data sets
-  groundfish.db( DS="set.base.redo" )  --- TODO :: add routines to absord scanmar.db into set.base
+  groundfish.db( DS="set.base.redo" ) # this includes scanmar.db("sweptarea")
   groundfish.db( DS="cat.base.redo" )
   groundfish.db( "det.base.redo")#, r2crit=0.75 ) # ~ 10 min
 

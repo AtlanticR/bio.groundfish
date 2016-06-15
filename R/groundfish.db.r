@@ -2,6 +2,7 @@
   groundfish.db = function(  DS="complete", p=NULL, taxa="all", datayrs=NULL  ) {
 
     loc = file.path( project.datadirectory("bio.groundfish"), "data" )
+
     DataDumpFromWindows = F
     if ( DataDumpFromWindows ) {
       loc = file.path("C:", "datadump")
@@ -371,7 +372,7 @@
 
 
     if (DS %in% c("gsinf", "gsinf.redo" ) ) {
-      fn = file.path( loc,"gsinf.rdata")
+      fn = file.path( loc, "gsinf.rdata")
 
       if ( DS=="gsinf" ) {
         load( fn )
@@ -499,7 +500,8 @@
       return(fn)
     }
 
- # ----------------------
+
+# -------------
 
 
 		if (DS %in% c( "gshyd.profiles.odbc" , "gshyd.profiles.odbc.redo" ) ) {
@@ -889,6 +891,275 @@
       return( fn  )
     }
 
+  # -------
+
+
+  if (DS %in% c("sweptarea", "sweptarea.redo" )) {
+    # merge bottom contact data into the main gsinf table and
+    # then do some sanity checks on the SA estimates and
+    # then compute best estimates where data are missing
+
+    fn = file.path( loc, "gsinf.sweptarea.rdata" )
+
+    if (DS=="sweptarea") {
+      gsinf = NULL
+      if (file.exists(fn)) load(fn)
+      return( gsinf )
+    }
+
+    if (is.null (YRS) ) YRS = p$netmensuration.years
+    gsinf = groundfish.db( DS="gsinf" )
+    gsinf_bc = scanmar.db( DS="bottom.contact", p=p )
+
+    toreject = which( !is.na( gsinf_bc$bc.error.flag ) )
+
+    gsinf_bc$wing.sa [ toreject] = NA
+    gsinf_bc$door.sa [ toreject] = NA
+
+    newvars = setdiff( names( gsinf_bc ), names( gsinf)  )
+    tokeep = c("id", newvars )
+
+    ng = nrow( gsinf)
+    gsinf = merge( gsinf, gsinf_bc[,tokeep], by="id", all.x=TRUE, all.y=FALSE )
+    if ( ng != nrow(gsinf) ) error("merge error" )
+
+    gsinf$dist_wing = gsinf$wing.sa / gsinf$wing.mean * 1000  # est of length of the tow (km)
+    gsinf$dist_door = gsinf$door.sa / gsinf$door.mean * 1000 # est of length of the tow (km)
+    gsinf$yr = lubridate::year(gsinf$sdate)
+
+      # empirical distribution suggests (above)  hard limits of rn, ~ same as gating limits
+      # .. too extreme means interpolation did not work well .. drop
+      qnts = c( 0.005, 0.995 )
+      w2a = which( gsinf$geardesc == "Western IIA trawl" & gsinf$settype %in% c(1,2,5) )     # for distribution checks for western IIA trawl
+
+      if (0) hist( gsinf$wing.mean[w2a], "fd", xlim=c( 8,22) )
+      rn = quantile( gsinf$wing.mean[w2a], probs=qnts, na.rm=TRUE )  # ranges from 11 to 20
+      i = which( (gsinf$wing.mean < rn[1] | gsinf$wing.mean > rn[2] ) & gsinf$geardesc == "Western IIA trawl" & gsinf$settype %in% c(1,2,5)  )
+      if ( length(i) > 0) {
+        gsinf$wing.mean[i] = NA
+        gsinf$wing.sa[i] = NA
+        gsinf$wing.sd[i] = NA
+      }
+
+      if (0) hist( gsinf$door.mean[w2a], "fd", xlim=c( 0, 85 ) )
+      rn = quantile( gsinf$door.mean[w2a], probs=qnts, na.rm=TRUE )  # ranges from 13 to 79
+      i = which( (gsinf$door.mean < rn[1] | gsinf$door.mean > rn[2] ) & gsinf$geardesc == "Western IIA trawl" & gsinf$settype %in% c(1,2,5)  )
+      if ( length(i) > 0) {
+        gsinf$door.mean[i] = NA
+        gsinf$door.sa[i] = NA
+        gsinf$door.sd[i] = NA
+      }
+
+      # unreliable SD
+      if (0) hist( gsinf$wing.sd[w2a], "fd", xlim=c( 0.1, 5 ) )
+      rn = quantile( gsinf$wing.sd[w2a], probs=qnts, na.rm=TRUE )  # ranges from 0.16 to 3.62
+      i = which( (gsinf$wing.sd < rn[1] | gsinf$wing.sd > rn[2] ) & gsinf$geardesc == "Western IIA trawl" & gsinf$settype %in% c(1,2,5) )
+      if ( length(i) > 0) {
+        gsinf$wing.mean[i] = NA
+        gsinf$wing.sa[i] = NA
+        gsinf$wing.sd[i] = NA
+      }
+
+      if (0) hist( gsinf$door.sd[w2a], "fd", xlim=c( 0.1, 25 ) )
+      rn = quantile( gsinf$door.sd[w2a], probs=qnts, na.rm=TRUE )  # ranges from 0.42 to 16 .. using 0.1 to 20
+      i = which( (gsinf$door.sd < rn[1] | gsinf$door.sd > rn[2] ) & gsinf$geardesc == "Western IIA trawl" & gsinf$settype %in% c(1,2,5) )
+      if ( length(i) > 0) {
+        gsinf$door.mean[i] = NA
+        gsinf$door.sa[i] = NA
+        gsinf$door.sd[i] = NA
+      }
+
+      # unreliable SA's
+      if (0) hist( gsinf$wing.sa[w2a], "fd", xlim=c( 0.01, 0.08 ) )
+      rn = quantile( gsinf$wing.sa[w2a], probs=qnts, na.rm=TRUE )  # ranges from 0.02 to 0.064 .. using 0.01 to 0.08
+      i = which( (gsinf$wing.sa < rn[1] | gsinf$wing.sa > rn[2] ) & gsinf$geardesc == "Western IIA trawl" & gsinf$settype %in% c(1,2,5) )
+      if ( length(i) > 0) {
+        gsinf$wing.mean[i] = NA
+        gsinf$wing.sa[i] = NA
+        gsinf$wing.sd[i] = NA
+      }
+
+
+      if (0) hist( gsinf$door.sa[w2a], "fd" , xlim=c( 0.02, 0.30 ))
+      rn = quantile( gsinf$door.sa[w2a], probs=qnts, na.rm=TRUE )  # ranges from 0.04 to 0.25 .. using 0.02 to 0.30
+      i = which( (gsinf$door.sa < rn[1] | gsinf$door.sa > rn[2] ) & gsinf$geardesc == "Western IIA trawl" & gsinf$settype %in% c(1,2,5)  )
+      if ( length(i) > 0) {
+        gsinf$door.mean[i] = NA
+        gsinf$door.sa[i] = NA
+        gsinf$door.sd[i] = NA
+      }
+
+
+      # tow length est
+      if (0) hist( gsinf$dist_wing[w2a], "fd", xlim=c( 1.75, 4.5 ) )
+      rn = quantile( gsinf$dist_wing[w2a], probs=qnts, na.rm=TRUE )  # ranges from 2.06 to 4.2 .. using 1.75 to 4.5
+      i = which( (gsinf$dist_wing < rn[1] | gsinf$dist_wing > rn[2] ) & gsinf$geardesc == "Western IIA trawl"  & gsinf$settype %in% c(1,2,5) )
+      if ( length(i) > 0) {
+        gsinf$dist_wing[i] = NA
+        gsinf$wing.mean[i] = NA
+        gsinf$wing.sa[i] = NA
+        gsinf$wing.sd[i] = NA
+      }
+
+      if (0) hist( gsinf$dist_door[w2a], "fd", xlim=c( 1.75, 4.5 )  )
+      rn = quantile( gsinf$dist_door[w2a], probs=qnts, na.rm=TRUE )  # ranges from 2.03 to 4.2 .. using 1.75 to 4.5
+      i = which( (gsinf$dist_door < rn[1] | gsinf$dist_door > rn[2] ) & gsinf$geardesc == "Western IIA trawl" & gsinf$settype %in% c(1,2,5)  )
+      if ( length(i) > 0) {
+        gsinf$dist_door[i] = NA
+        gsinf$door.mean[i] = NA
+        gsinf$door.sa[i] = NA
+        gsinf$door.sd[i] = NA
+      }
+
+      # basic (gating) sanity checks finished ..
+      # now estimate swept area for data locations where estimates
+      # do not exist or are problematic from bottom contact approach
+
+      ## dist_km is logged distance in gsinf
+      ## dist_pos is distance based upon logged start/end locations
+      ## dist_bc is distance from bottom contact analysis
+      ## dist_wing / dist_door .. back caluculated distance from SA
+
+      # estimate distance of tow track starting with most reliable to least
+      gsinf$distance = NA
+      gsinf$distance[w2a] = gsinf$dist_wing[w2a]
+
+      ii = intersect( which( !is.finite( gsinf$distance ) ) , w2a)
+      if (length(ii) > 0) gsinf$distance[ii] = gsinf$dist_door[ii]
+
+      ii = intersect( which( !is.finite( gsinf$distance ) ), w2a )
+      if (length(ii) > 0) gsinf$distance[ii] = gsinf$dist_pos[ii]
+
+      ii = intersect( which( !is.finite( gsinf$distance ) ), w2a )
+      if (length(ii) > 0) gsinf$distance[ii] = gsinf$dist_km[ii]
+
+
+
+      # wing and door spread models
+      # there are differences due to nets config and/or sensors each year ..
+      require(mgcv)
+      gsinf$yr0 = gsinf$yr  # yr will be modified to permit prediction temporarilly
+
+      ii = intersect( which( !is.finite( gsinf$wing.mean )) , w2a )
+      if (length(ii)>0 & length(which( is.finite( gsinf$wing.mean))) > 100 ) {
+        wm = gam( wing.mean ~ factor(yr) + s(lon,lat) + s(bottom_depth)+s(door.mean), data= gsinf[ w2a,] )
+#R-sq.(adj) =  0.768   Deviance explained = 77.5%
+#GCV = 1.0159  Scale est. = 0.98308   n = 1193
+        jj = which( ! gsinf$yr %in% as.numeric(as.character(wm$xlevels[["factor(yr)"]])) )
+        if (length(jj)>0) gsinf$yr[jj] = 2004  # to minimise discontinuity across year (and also visually close to median level)
+        gsinf$wing.mean[ii] = predict( wm, newdata=gsinf[ii,], type="response" )
+        gsinf$wing.sd[ii] = NA  # ensure sd is NA to mark it as having been estimated after the fact
+      }
+
+
+      ii = intersect( which( !is.finite( gsinf$wing.mean )) , w2a )
+      if (length(ii)>0 & length(which( is.finite( gsinf$wing.mean))) > 100 ) {
+        wm = gam( wing.mean ~ factor(yr) + s(lon,lat) + s(bottom_depth), data= gsinf[ intersect( w2a, which(! is.na(gsinf$wing.sd))),] )
+ # summary(wm)
+ # R-sq.(adj) =  0.693   Deviance explained = 70.4%
+ # GCV = 1.3509  Scale est. = 1.3044    n = 1209
+        jj = which( ! gsinf$yr %in% as.numeric(as.character(wm$xlevels[["factor(yr)"]])) )
+        if (length(jj)>0) gsinf$yr[jj] = 2004  # to minimise discontinuity across year (and also visually close to median level)
+        gsinf$wing.mean[ii] = predict( wm, newdata=gsinf[ii,], type="response" )
+        gsinf$wing.sd[ii] = NA  # ensure sd is NA to mark it as having been estimated after the fact
+      }
+
+
+      ii = intersect( which( !is.finite( gsinf$wing.mean )) , w2a )
+      if (length(ii)>0 & length(which( is.finite( gsinf$wing.mean))) > 100 ) {
+         wm = gam( wing.mean ~ factor(yr) + s(lon,lat) , data= gsinf[ intersect( w2a, which(! is.na(gsinf$wing.sd))),] )
+ # summary(wm)
+# R-sq.(adj) =  0.486   Deviance explained = 50.2%
+# GCV = 2.2601  Scale est. = 2.1869    n = 1209
+        jj = which( ! gsinf$yr %in% as.numeric(as.character(wm$xlevels[["factor(yr)"]])) )
+        if (length(jj)>0) gsinf$yr[jj] = 2004  # to minimise discontinuity across year (and also visually close to median level)
+        gsinf$wing.mean[ii] = predict( wm, newdata=gsinf[ii,], type="response" )
+        gsinf$wing.sd[ii] = NA  # ensure sd is NA to mark it as having been estimated after the fact
+      }
+
+
+      ii = intersect( which( !is.finite( gsinf$door.mean )), w2a )
+      if (length(ii)>0 & length(which( is.finite( gsinf$door.mean))) > 100 ) {
+        wd = gam( door.mean ~ factor(yr) + s(lon,lat) + s(bottom_depth)+s(wing.mean), data= gsinf[w2a,] )
+#R-sq.(adj) =  0.654   Deviance explained = 66.3%
+#GCV = 86.858  Scale est. = 84.594    n = 1454
+        jj = which( ! as.character( gsinf$yr0) %in%  wd$xlevels[["factor(yr)"]] )
+        if (length(jj)>0) gsinf$yr[jj] = 2004  # to minimise discontinuity across year (and also visually close to median level)
+        gsinf$door.mean[ii] = predict( wd, newdata=gsinf[ii,], type="response" )
+        gsinf$door.sd[ii] = NA  # ensure sd is NA to mark it as having been estimated after the fact
+      }
+
+      ii = intersect( which( !is.finite( gsinf$door.mean )), w2a )
+      if (length(ii)>0 & length(which( is.finite( gsinf$door.mean))) > 100 ) {
+        wd = gam( door.mean ~ factor(yr) + s(lon,lat) + s(bottom_depth), data= gsinf[ intersect( w2a, which(! is.na(gsinf$door.sd))),] )
+        #      summary(wd)
+# R-sq.(adj) =   0.58   Deviance explained = 59.2%
+# GCV = 105.65  Scale est. = 102.61    n = 1454
+        jj = which( ! as.character( gsinf$yr0) %in%  wd$xlevels[["factor(yr)"]] )
+        if (length(jj)>0) gsinf$yr[jj] = 2004  # to minimise discontinuity across year (and also visually close to median level)
+        gsinf$door.mean[ii] = predict( wd, newdata=gsinf[ii,], type="response" )
+        gsinf$door.sd[ii] = NA  # ensure sd is NA to mark it as having been estimated after the fact
+      }
+
+      ii = intersect( which( !is.finite( gsinf$door.mean )), w2a )
+      if (length(ii)>0 & length(which( is.finite( gsinf$door.mean))) > 100 ) {
+        wd = gam( door.mean ~ factor(yr) + s(lon,lat) , data= gsinf[ intersect( w2a, which(! is.na(gsinf$door.sd))),] )
+        #      summary(wd)
+#R-sq.(adj) =  0.486   Deviance explained = 50.2%
+#GCV = 2.2601  Scale est. = 2.1869    n = 1209
+        jj = which( ! as.character( gsinf$yr0) %in%  wd$xlevels[["factor(yr)"]] )
+        if (length(jj)>0) gsinf$yr[jj] = 2004  # to minimise discontinuity across year (and also visually close to median level)
+        gsinf$door.mean[ii] = predict( wd, newdata=gsinf[ii,], type="response" )
+        gsinf$door.sd[ii] = NA  # ensure sd is NA to mark it as having been estimated after the fact
+      }
+
+
+      # return correct years to data
+      gsinf$yr =gsinf$yr0
+      gsinf$yr0 = NULL
+
+      # estimate SA:
+      gsinf$wing.sa.crude = gsinf$distance * gsinf$wing.mean /1000
+      gsinf$door.sa.crude = gsinf$distance * gsinf$door.mean /1000
+
+      # gating
+      bad = intersect( which( gsinf$wing.sa.crude > 0.09 ) , w2a)
+      gsinf$wing.sa.crude[bad] = NA
+
+      bad = intersect( which( gsinf$door.sa.crude > 0.03 ), w2a)
+      gsinf$door.sa.crude[bad] = NA
+
+      bad = intersect( which( gsinf$wing.sa > 0.09 ) , w2a)
+      gsinf$wing.sa[bad] = NA
+
+      bad = intersect( which( gsinf$door.sa > 0.03 ), w2a)
+      gsinf$door.sa[bad] = NA
+
+      ii = intersect( which( !is.finite( gsinf$wing.sa ) ), w2a)
+      if (length(ii) > 0) gsinf$wing.sa[ii] = gsinf$wing.sa.crude[ii]
+
+      ii = intersect( which( !is.finite( gsinf$door.sa ) ), w2a)
+      if (length(ii) > 0) gsinf$door.sa[ii] = gsinf$door.sa.crude[ii]
+
+      sayrw =  tapply( gsinf$wing.sa, gsinf$yr, mean, na.rm=TRUE)
+      sayrd =  tapply( gsinf$door.sa, gsinf$yr, mean, na.rm=TRUE)
+      sayrp =  tapply( gsinf$sakm2, gsinf$yr, mean, na.rm=TRUE)
+
+
+      ii = intersect( which( !is.finite( gsinf$wing.sa ) ), w2a)
+      if (length(ii) > 0 ) gsinf$wing.sa[ii] = sayrw[as.character(gsinf$yr[ii])]
+
+      ii = intersect( which( !is.finite( gsinf$wing.sa ) ), w2a)
+      if (length(ii) > 0 ) gsinf$wing.sa[ii] = sayrp[as.character(gsinf$yr[ii])]
+
+      ii = intersect( which( !is.finite( gsinf$door.sa ) ), w2a)
+      if (length(ii) > 0 ) gsinf$door.sa[ii] = sayrd[as.character(gsinf$yr[ii])]
+
+
+    save( gsinf, file=fn, compress=TRUE )
+
+    return( fn )
+  }
 
 
  # ----------------------
@@ -901,11 +1172,9 @@
         return ( set )
       }
 
-      gsinf = groundfish.db( "gsinf" )
-
+      gsinf = groundfish.db( "sweptarea" )
       gshyd = groundfish.db( "gshyd" ) # already contains temp data from gsinf
-
-      set = merge(x=gsinf, y=gshyd, by=c("id"), all.x=T, all.y=F, sort=F)
+      set = merge(x=gsinf, y=gshyd, by=c("id"), all.x=TRUE, all.y=FALSE, sort=FALSE)
       rm (gshyd, gsinf)
 
       oo = which( !is.finite( set$sdate)) # NED1999842 has no accompanying gsinf data ... drop it
@@ -913,16 +1182,28 @@
 
       set$timestamp = set$sdate
 
-      set = set[, c("id", "timestamp", "yr", "strat", "dist_km", "dist_pos",
-                 "sakm2", "lon", "lat", "sdepth", "temp", "sal", "oxyml", "settype")]
+      # set = set[, c("id", "timestamp", "yr", "strat", "dist_km", "dist_pos",
+      #           "sakm2", "lon", "lat", "sdepth", "temp", "sal", "oxyml", "settype")]
 
-      set = set[ !duplicated(set$id) ,]
+      if (length(which(duplicated(set$id)))>0 ) stop("Duplicates found ...")
+
       set$oxysat = compute.oxygen.saturation( t.C=set$temp, sal.ppt=set$sal, oxy.ml.l=set$oxyml)
-      set$cfset = 1 / set$sakm2
+
+      # surface area / areal expansion correction factor: cfset
+      set$cfset = 1 / set$wing.sa
+      nodata = which( !is.finite( set$cfset ))
+      if (length(nodata)>0) {
+        set$cfset[nodata] = 1 / set$sakm2[nodata]
+      }
+      nodata = which( !is.finite( set$cfset ))
+      if (length(nodata)>0) {
+        set$cfset[nodata] = median( set$cfset, na.rm=TRUE )
+      }
 
       save ( set, file=fn, compress=T)
       return( fn  )
     }
+
 
     # ----------------------
 

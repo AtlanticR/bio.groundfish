@@ -2,7 +2,7 @@ figures.netmensuration = function( p, DS="", outdir = file.path( project.datadir
 
   if (! file.exists( outdir ) ) dir.create( outdir, recursive =TRUE )
 
-  gsinf = scanmar.db( DS="sweptarea",  p=p )  
+  gsinf = groundfish.db( DS="sweptarea" )
   gg = which( gsinf$geardesc == "Western IIA trawl" & gsinf$settype %in% c(1,2,5) )
   gsinf = gsinf[ gg, ]
 
@@ -11,14 +11,14 @@ figures.netmensuration = function( p, DS="", outdir = file.path( project.datadir
     cols = c("slateblue", "red", "orange")
     pdf( file=fn )
       ii = which ( is.finite( gsinf$wing.sd) & is.finite (gsinf$door.sd ) )
-      plot(door.mean~wing.mean, gsinf[ii,], type="n", xlab=" Wing spread (m)", ylab="Door spread (m)", xlim=c(8,20), ylim=c(6,81) ) 
+      plot(door.mean~wing.mean, gsinf[ii,], type="n", xlab=" Wing spread (m)", ylab="Door spread (m)", xlim=c(8,20), ylim=c(6,81) )
       iold = intersect(ii, which( gsinf$geardesc == "Western IIA trawl" & (gsinf$yr < 2011 | gsinf$yr==2012)  ) )
-      points ( door.mean ~ wing.mean, gsinf[iold, ], col=cols[1], pch=20, cex=0.7 ) 
+      points ( door.mean ~ wing.mean, gsinf[iold, ], col=cols[1], pch=20, cex=0.7 )
       imed = intersect(ii, which( gsinf$geardesc == "Western IIA trawl" & gsinf$yr %in% c( 2011 ) ) )
-      points ( door.mean ~ wing.mean, gsinf[imed, ], col=cols[2], pch=20, cex=0.7 ) 
+      points ( door.mean ~ wing.mean, gsinf[imed, ], col=cols[2], pch=20, cex=0.7 )
       inew = intersect(ii, which( gsinf$geardesc == "Western IIA trawl" & gsinf$yr >= 2013 ) )
       points ( door.mean ~ wing.mean, gsinf[inew, ], col=cols[3], pch=20, cex=0.9 )
-      legend( "bottomright",  legend=c("2004-2010, 2012", "2011", "2013-2015"),  text.col=cols, pch=20, col=cols )   
+      legend( "bottomright",  legend=c("2004-2010, 2012", "2011", "2013-2015"),  text.col=cols, pch=20, col=cols )
     dev.off()
     print( fn )
   }
@@ -53,13 +53,13 @@ figures.netmensuration = function( p, DS="", outdir = file.path( project.datadir
     pdf( file=fn )
       layout(matrix(c(1,1,2,2), 2, 2, byrow = TRUE), respect = TRUE)
       ii = which ( is.finite( gsinf$wing.sd)  )  ## where good estimates exist
-      boxplot( door.mean ~ yr, gsinf[ii,], ylab="Door spread (m)" ) 
-      boxplot( wing.mean ~ yr, gsinf[ii,], ylab="Wing spread (m)", xlab="Year" ) 
+      boxplot( door.mean ~ yr, gsinf[ii,], ylab="Door spread (m)" )
+      boxplot( wing.mean ~ yr, gsinf[ii,], ylab="Wing spread (m)", xlab="Year" )
     dev.off()
     print( fn )
   }
 
- 
+
   if (DS %in% c("toweddistance", "all") ) {
     fn = file.path( outdir, "toweddistance.pdf" )
     cols = c("slateblue", "orange")
@@ -68,9 +68,9 @@ figures.netmensuration = function( p, DS="", outdir = file.path( project.datadir
 
       points( bc.dist ~ dist_pos, gsinf, col=cols[2], pch=20, cex=0.5 ) # bottom contact
       abline( a=0, b=1, col="orange" )
-       
-      legend( "bottomright",  legend=c("Logged positions", "Bottom contact analysis"),  text.col=cols, pch=20, col=cols )   
-      text( 4, 8, "Western II-A, \n Set types 1, 2, 5 \n (stratified random, regular survey, comparative fishing)" ) 
+
+      legend( "bottomright",  legend=c("Logged positions", "Bottom contact analysis"),  text.col=cols, pch=20, col=cols )
+      text( 4, 8, "Western II-A, \n Set types 1, 2, 5 \n (stratified random, regular survey, comparative fishing)" )
 
     dev.off()
     print( fn )
@@ -78,11 +78,11 @@ figures.netmensuration = function( p, DS="", outdir = file.path( project.datadir
 
 
   # -------
-  
+
   if (DS %in% c("noSets", "all") ) {
     fn = file.path( outdir, "numberOfSets.pdf" )
     cols = c("slateblue", "orange")
-    gsinf = scanmar.db( DS="sweptarea",  p=p ) # use all data not just western 2a 
+    gsinf = groundfish.db( DS="sweptarea" ) # use all data not just western 2a
     m = tapply( rep(1,nrow(gsinf)), gsinf$yr, sum)
     bc2 = gsinf[ is.finite(gsinf$bottom_duration) , ]
     n = tapply( rep(1,nrow(bc2)), bc2$yr, sum)
@@ -97,12 +97,12 @@ figures.netmensuration = function( p, DS="", outdir = file.path( project.datadir
 
 
   # -------
-  
+
   if (DS %in% c("", "all") ) {
     fn = file.path( outdir, "xxx.pdf" )
     cols = c("slateblue", "red", "orange")
     #pdf( file=fn )
-        
+
 
     #dev.off()
     #print( fn )

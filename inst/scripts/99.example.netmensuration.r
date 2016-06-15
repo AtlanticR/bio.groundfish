@@ -55,7 +55,7 @@ scanmar.db( DS="bottom.contact.redo",  p=p )  # bring in estimates of bottom con
 # swept areas are computed in bottom.contact.redo ..
 # this step estimates swept area for those where there was insufficient data to compute SA directly from logs,
 # estimate via approximation using speed etc.
-scanmar.db( DS="sweptarea.redo",  p=p )
+groundfish.db( DS="sweptarea.redo",  p=p )
 
 figures.netmensuration( DS="all", p=p )
 
