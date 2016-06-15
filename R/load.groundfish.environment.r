@@ -14,13 +14,20 @@ load.groundfish.environment = function( libs=NULL, p=NULL, assessment.year=NULL 
 
   p$libs = unique( c( libs, rlibs, blibs) )
 
-  p$R.gs = file.path( project.datadirectory("bio.groundfish"), "R" )
-
   if (is.null (assessment.year ) ) {
     p$assessment.year = lubridate::year( Sys.Date() )
   } else {
     p$assessment.year = assessment.year
   }
+
+  p$taxa.of.interest = variable.list.expand("catch.summary")
+  p$season = "summer"
+  p = spatial.parameters( p, "SSE" )  # data are from this domain .. so far
+  p$taxa =  "maxresolved"
+  p$nw = 10  # from temperature.r, number of intervals in a year
+
+  p$R.gs = file.path( project.datadirectory("bio.groundfish"), "R" )
+
 
   setwd( p$R.gs )
 

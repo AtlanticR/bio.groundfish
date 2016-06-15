@@ -834,7 +834,7 @@ scanmar.db = function( DS, p, nm=NULL, YRS=NULL, setid=NULL, debugid=NULL){
 
     if ( !is.null( debugid ) ) {
       YRS = unique( as.numeric( substring( debugid, 4,7) ))
-      if (! YRS %in% c(1990:1992, 2004:p$year.assessment) ) {
+      if (! YRS %in% c(1990:1992, 2004:p$assessment.year) ) {
         stop( paste( "Year did not parse correctly? ", YRS ) )
       }
     }

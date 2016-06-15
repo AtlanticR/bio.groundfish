@@ -4,7 +4,7 @@
 
 # ------------------  Common initialisation for groundfish
 
-  p = bio.groundfish::load.groundfish.environment()
+  p = bio.groundfish::load.groundfish.environment(assessment.year = 2015)
 
 # not too many as it has high memory requirements
 # clusters=c("tethys", "tethys", "io", "io", "io" )
@@ -13,24 +13,14 @@
   p$clusters = rep("localhost", detectCores() )
 
 # choose taxa or taxonomic groups of interest
-  p$taxa.of.interest = variable.list.expand("catch.summary")
-  p$season = "summer"
-  p = spatial.parameters( p, "SSE" )  # data are from this domain .. so far
-  p$taxa =  "maxresolved"
-  p$nw = 10  # from temperature.r, number of intervals in a year
 
 
 # ---------
 # primary data sets
 # these should be run on a windows machine: NULL values get mangled for some reason
-  p$year.assessment = 2015
 
-  odbc.data.yrs=1970:p$year.assessment
-    #  <<<<< ---- DATA YEAR can be a single year update too
-    # --- for import of data year only
-
+  odbc.data.yrs=1970:p$assessment.year  #  <<<<< ---- DATA YEAR can be a single year update too
   groundfish.db( DS="odbc.redo", datayrs=odbc.data.yrs )
-
 
   refresh.bio.species.codes = FALSE
   if (refresh.bio.species.codes ) {
@@ -87,7 +77,6 @@
     scanmar.db( DS="scanmar.filtered.redo",  p=p )
 
     figures.netmensuration( DS="all", p=p, outdir=p$netmens.dir  )
-
     # see scripts/99.example.netmensuration.r for some additional figures, etc.
 
   }
