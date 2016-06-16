@@ -1332,7 +1332,7 @@ if (DS %in% c("sweptarea", "sweptarea.redo" )) {
   if (DS %in% c("set", "set.redo") ) {
 
     fn = file.path( project.datadirectory("bio.groundfish"), "data", "set.rdata")
-    if ( DS=="set.complete" ) {
+    if ( DS=="set" ) {
       load( fn )
       return ( set )
     }
