@@ -73,5 +73,5 @@
   groundfish.db( DS="set.redo", p=p ) # finalize
 
 # create a lookuptable for data transformations
-  REPOS = recode.variable.initiate.db ( db="groundfish" )
+  REPOS = bio.indicators::recode.variable.initiate.db ( db="groundfish" )
 
