@@ -59,36 +59,18 @@
   groundfish.db( DS="gshyd.redo" )
   groundfish.db( DS="gshyd.georef.redo" )  # not used here but used in temperature re-analysis
 
-
 # lookupregion = lookup.strata()  # create strata vs region lookup table
 
-# ---------
 # merged data sets
-  groundfish.db( DS="set.base.redo" ) # this includes scanmar.db("sweptarea")
-  groundfish.db( DS="cat.base.redo" )
-  groundfish.db( "det.base.redo")#, r2crit=0.75 ) # ~ 10 min
-
-  groundfish.db( "cat.redo" )  # add correction factors, and express per unit area
-  groundfish.db( "det.redo" ) # ~ 10 min on io
-
-  groundfish.db( "catchbyspecies.redo", taxa=p$taxa.of.interest )
-
-
-# ---------
-# 3. sm_det.rdata .. summarize condition
-  groundfish.db( "set.det.redo", taxa=p$taxa.of.interest )
-  groundfish.db( "set.complete.redo", p=p )
-
-
-# -------------------------------------------------------------------------------------
-# Run bio.habitat to update the multi-survey databases
-# -------------------------------------------------------------------------------------
-
+  groundfish.db( DS="set.base.redo" ) # set info .. includes scanmar.db("sweptarea")
+  groundfish.db( DS="cat.base.redo" ) # catches
+  groundfish.db( DS="det.base.redo") # determined factors
+  groundfish.db( DS="cat.redo" ) # catches .. add correction factors, and express per unit area
+  groundfish.db( DS="det.redo" ) # determined data (length, weight etc)
+  groundfish.db( DS="set.det.redo" ) # add determined data summaries
+  groundfish.db( DS="catchbyspecies.redo", taxa=p$taxa.of.interest )
+  groundfish.db( DS="set.redo", taxa=p$taxa.of.interest ) # finalize
 
 # create a lookuptable for data transformations
   REPOS = recode.variable.initiate.db ( db="groundfish" )
-
-
-
-
 

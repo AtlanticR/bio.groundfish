@@ -2,7 +2,7 @@
   p = bio.groundfish::load.groundfish.environment()
 
   data.location = file.path( project.datadirectory("bio.groundfish"), "data", "2014")
-  set =  groundfish.db( "set.complete" )
+  set =  groundfish.db( "set" )
 
   variables = variable.list.expand("all")
   plottimes = c("annual")
