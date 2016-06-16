@@ -908,7 +908,6 @@ if (DS %in% c("sweptarea", "sweptarea.redo" )) {
     return( gsinf )
   }
 
-  if (is.null (YRS) ) YRS = p$netmensuration.years
   gsinf = groundfish.db( DS="gsinf" )
   gsinf_bc = scanmar.db( DS="bottom.contact", p=p )
 
