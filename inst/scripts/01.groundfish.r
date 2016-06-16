@@ -2,7 +2,8 @@
   p = bio.groundfish::load.groundfish.environment(assessment.year = 2015)
 
   # these should be run on a windows machine: NULL values get mangled for some reason
-  # p$odbc.data.yrs=1970:p$assessment.year  #  <<<<< ---- DATA YEAR can be a single year update too
+
+  p$odbc.data.yrs=p$assessment.year  #  <<<<< ---- DATA YEAR can be a single year update too
   groundfish.db( DS="odbc.redo", datayrs=p$odbc.data.yrs )
 
   refresh.bio.species.codes = FALSE

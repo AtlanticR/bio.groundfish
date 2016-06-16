@@ -1162,7 +1162,7 @@ if (DS %in% c("sweptarea", "sweptarea.redo" )) {
 
     gsinf$cfset = 1 / gsinf$sweptarea
     nodata = which( !is.finite( gsinf$cfset ))
-    browser( ) ## check
+#    browser( ) ## check
 
   save( gsinf, file=fn, compress=TRUE )
 
