@@ -68,9 +68,9 @@
   groundfish.db( DS="det.base.redo") # determined factors
   groundfish.db( DS="cat.redo" ) # catches .. add correction factors, and express per unit area
   groundfish.db( DS="det.redo" ) # determined data (length, weight etc)
-  groundfish.db( DS="set.det.redo" ) # add determined data summaries
+  groundfish.db( DS="set.det.redo", taxa=p$taxa.of.interest ) # add determined data summaries
   groundfish.db( DS="catchbyspecies.redo", taxa=p$taxa.of.interest )
-  groundfish.db( DS="set.redo", taxa=p$taxa.of.interest ) # finalize
+  groundfish.db( DS="set.redo", p=p ) # finalize
 
 # create a lookuptable for data transformations
   REPOS = recode.variable.initiate.db ( db="groundfish" )

@@ -1254,7 +1254,7 @@ if (DS %in% c("sweptarea", "sweptarea.redo" )) {
 
     require (Hmisc)
     set = groundfish.db( "set.base" ) [, c("id", "yr")] # yr to maintain data structure
-    newvars = c("rmean", "pmean", "mmean", "lmean", "rsd", "psd", "msd", "lsd")
+    newvars = c( "mmean", "lmean", "msd", "lsd")
     dummy = as.data.frame( array(data=NA, dim=c(nrow(set), length(newvars) )))
     names (dummy) = newvars
     set = cbind(set, dummy)
