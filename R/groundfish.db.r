@@ -908,6 +908,8 @@ if (DS %in% c("sweptarea", "sweptarea.redo" )) {
     return( gsinf )
   }
 
+  p = bio.groundfish::load.groundfish.environment()
+
   gsinf = groundfish.db( DS="gsinf" )
   gsinf_bc = scanmar.db( DS="bottom.contact", p=p )
 
@@ -1336,6 +1338,7 @@ if (DS %in% c("sweptarea", "sweptarea.redo" )) {
     }
     # this is everything in bio.groundfish just prior to the merging in of habitat data
     # useful for survey.db as the habitat data are brough in separately
+    p = bio.groundfish::load.groundfish.environment()
 
     set = groundfish.db( "set.base" )
 
