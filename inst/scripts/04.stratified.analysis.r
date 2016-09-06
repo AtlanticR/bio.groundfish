@@ -2,17 +2,17 @@
 p = bio.groundfish::load.groundfish.environment("BIOsurvey")
 
 fp = file.path(project.datadirectory('bio.groundfish'),"analysis")
-p$strat=490:495
+p$strat=480:495
 p$series =c('summer')# p$series =c('4vswcod');p$series =c('georges')
-p$years.to.estimate = c(1970:2015)
-p$species = c(11)
+p$years.to.estimate = c(1999:2015)
+p$species = c(2550)
 p$vessel.correction = T
 p$vessel.correction.fixed = 1.2
 p$length.based = F
 p$size.class= c(82,300)
 p$by.sex = F
 p$sex = 1# male female berried c(1,2,3)
-
+p$strata.efficiencies=T
 #out = groundfish.db(DS='gsdet.spec.redo',p=p)
 p$alpha = 0.05
 

@@ -153,7 +153,7 @@ if(DS %in% c('stratified.estimates','stratified.estimates.redo')) {
                 se$slat = convert.dd.dddd(se$slat)
         p$lb = p$length.based
 
-        if(p$by.sex & !p$length.based) {p$size_class=c(0,1000); p$length.based=T}
+        if(p$by.sex & !p$length.based) {p$size.class=c(0,1000); p$length.based=T}
 
         if(!p$lb) { vars.2.keep =c('mission','setno','totwgt','totno','size_class','spec')
                     ca = ca[,vars.2.keep]
@@ -235,13 +235,14 @@ if(DS %in% c('stratified.estimates','stratified.estimates.redo')) {
                       bsW = NA
                       bsN = NA
                       nt = NA
+                    
                if(p$bootstrapped.ci) {
                   bsW = summary(boot.strata(sW,method='BWR',nresamp=1000),ci.method='BC')
                   bsN = summary(boot.strata(sN,method='BWR',nresamp=1000),ci.method='BC')
                   nt  = sum(sW$Nh)/1000
                 }
-                out[mp,] = c(yr,v,ssW[[1]],ssW[[2]],bsW[1],bsW[2],ssW[[3]]/1000,bsW[1]*nt,bsW[2]*nt,
-                ssN[[1]],ssN[[2]],bsN[1],bsN[2],ssN[[3]]/1000,bsN[1]*nt,bsN[2]*nt,ssW$dwao)
+                out[mp,] = c(yr,v,ssW[[1]],ssW[[2]],bsW[[1]][1],bsW[[1]][2],ssW[[3]]/1000,bsW[[1]][1]*nt,bsW[[1]][2]*nt,
+                ssN[[1]],ssN[[2]],bsN[[1]][1],bsN[[1]][2],ssN[[3]]/1000,bsN[[1]][1]*nt,bsN[[1]][2]*nt,ssW$dwao)
                 print(out[mp,'v'])
               } else {
                 out[mp,] = c(yr,v,rep(0,15))
