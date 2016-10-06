@@ -26,7 +26,7 @@ load.groundfish.environment = function( libs=NULL, p=NULL, assessment.year=NULL 
 
   p$taxa.of.interest = variable.list.expand("catch.summary")
   p$season = "summer"
-  p = spatial.parameters( p, "SSE" )  # data are from this domain .. so far
+  p = spacetime_parameters( p, "SSE" )  # data are from this domain .. so far
   p$taxa =  "maxresolved"
   p$nw = 10  # from temperature.r, number of intervals in a year
   p$clusters = rep("localhost", detectCores() )
