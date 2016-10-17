@@ -15,7 +15,8 @@ groundfish.db = function(  DS="complete", p=NULL, taxa="all", datayrs=NULL  ) {
     groundfish.db( DS="gscat.odbc.redo", datayrs=datayrs )
     groundfish.db( DS="gsdet.odbc.redo", datayrs=datayrs )
     groundfish.db( DS="gsinf.odbc.redo", datayrs=datayrs )
-    groundfish.db( DS="gshyd.profiles.odbc.redo", datayrs=datayrs )
+    
+    #groundfish.db( DS="gshyd.profiles.odbc.redo", datayrs=datayrs )
 
     groundfish.db( DS="gsmissions.odbc.redo" ) #  not working?
 
