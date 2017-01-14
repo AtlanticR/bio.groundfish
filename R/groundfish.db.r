@@ -1344,8 +1344,11 @@ if (DS %in% c("sweptarea", "sweptarea.redo" )) {
     set = groundfish.db( "set.base" )
 
     set = lonlat2planar(set, proj.type=p$internal.projection ) # get planar projections of lon/lat in km
-    set$plon = grid.internal( set$plon, p$plons )
-    set$plat = grid.internal( set$plat, p$plats )
+    
+    grid = spatial_grid(p=p, DS="planar.coords")
+
+    set$plon = grid.internal( set$plon, grid$plons )
+    set$plat = grid.internal( set$plat, grid$plats )
     set = set[ which( is.finite( set$plon + set$plat) ), ]
 
     set$z = set$sdepth
