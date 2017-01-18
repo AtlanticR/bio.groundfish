@@ -1,5 +1,5 @@
 
-p = bio.groundfish::load.groundfish.environment(assessment.year = 2015)
+p = bio.groundfish::load.groundfish.environment(assessment.year = 2016)
 
 # these should be run on a windows machine: NULL values get mangled for some reason
 p$odbc.data.yrs=p$assessment.year  #  <<<<< ---- DATA YEAR can be a single year update too
