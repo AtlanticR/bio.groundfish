@@ -6,7 +6,7 @@ load.groundfish.environment = function( libs=NULL, p=NULL, assessment.year=NULL 
     "rgdal", "raster" , "INLA", "numDeriv", "lubridate", "geosphere", "parallel" )
 
   blibs = bioLibrary( "bio.spacetime", "bio.utilities", "bio.taxonomy",
-    "netmensuration", "bio.temperature", "bio.habitat", "bio.bathymetry",
+    "netmensuration", "bio.temperature", "bio.bathymetry",
     "bio.groundfish", "bio.polygons", "bio.coastline" )
 
   if (!is.null(libs)) libs = RLibrary(libs)
