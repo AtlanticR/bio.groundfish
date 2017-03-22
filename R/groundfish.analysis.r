@@ -16,30 +16,37 @@ groundfish.analysis <- function(DS='stratified.estimates',out.dir = 'bio.groundf
          if (is.null(ip)) ip = 1:p$nruns
 
 if(DS %in% c('species.set.data')) {
-           outa = NULL
+            outa = NULL
             a = dir(loc)
             a = a[grep('strata.files',a)]
             a = a[grep(paste(p$species,collapse="|"),a)]
+            a = a[grep(paste(c(min(p$strat),max(p$strat)),collapse='.'),a)]
             if(exists('strata.files.return',p)){
-                  it = grep(paste(p$size.class,collapse="-"),a)
-                  load(file.path(loc,a[it]))
+                 if(p$length.based) {
+                     it = grep(paste(p$size.class,collapse="-"),a)
+                       load(file.path(loc,a[it]))
+                      } else {
+                        load(file.path(loc,a))
+                      }
                   return(strata.files)
                   }
+
             for(op in a) {
-                load(file.path(loc,op))
-                al = lapply(strata.files,"[[",2)
-                al = do.call('rbind',al)
-                al$Sp= strsplit(op,"\\.")[[1]][3]
-                b = strsplit(op,"\\.")
-                b = b[[1]][grep('length',b[[1]])+1]
-                al = rename.df(al,c('totwgt','totno'),c(paste('totwgt',b,sep="."),paste('totno',b,sep=".")))
-                if(is.null(outa)) {outa = rbind(al,outa)
-                  } else {
-                 outa = merge(outa,al[,c('mission','setno',paste('totwgt',b,sep="."),paste('totno',b,sep="."))],by=c('mission','setno'))
-                }
+                    load(file.path(loc,op))
+                    al = lapply(strata.files,"[[",2)
+                    al = do.call('rbind',al)
+                    al$Sp= strsplit(op,"\\.")[[1]][3]
+                    b = strsplit(op,"\\.")
+                    b = b[[1]][grep('length',b[[1]])+1]
+                    al = rename.df(al,c('totwgt','totno'),c(paste('totwgt',b,sep="."),paste('totno',b,sep=".")))
+                    if(is.null(outa)) {outa = rbind(al,outa)
+                    } else {
+                        outa = merge(outa,al[,c('mission','setno',paste('totwgt',b,sep="."),paste('totno',b,sep="."))],by=c('mission','setno'))
+                  }
                 }
                 return(outa)
               }
+
 if(DS %in% c('mean.wt.at.length')) {
   p$strata.files.return=T
   de = groundfish.db(DS='gsdet.odbc')
