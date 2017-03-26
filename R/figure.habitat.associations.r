@@ -2,7 +2,7 @@ figure.habitat.associations <- function(data,p,out.dir='bio.groundfish',f.name,p
 	print('2014 data not included temp and sal not in database')
 	options(stringsAsFactors=F)
 out.d = out.s = out.t = list()
-for(i in 1:(length(data)-2)) {
+for(i in 1:(length(data))) {
 
 			survey.dat = Prepare.strata.data(data[[c(i,2)]])
 			strata.dat = Prepare.strata.file(data[[c(i,1)]])
