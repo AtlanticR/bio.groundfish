@@ -63,16 +63,21 @@ gc()
 #weight at length
 
 if(redo.mean.wt.at.length) {
-    sc = c(18,21,25)
+    sc = c(17,22)
+    sc2 = c(21,28)
+p$by.sex = T
+p$sex = 2 #male; 2=female
+
     o = NULL
     for(i in 1:length(sc)) {
-      p$size.class = c(sc[i],sc[i])
+      p$size.class = c(sc[i],sc2[i])
       a = groundfish.analysis(DS='mean.wt.at.length',p=p,out.dir= 'silverhake')
-      a$length = sc[i]
+      a$length = paste(sc[i],sc2[i],sep="-")
       o = rbind(o,a)
       }
-    save(o,file= file.path(project.datadirectory('redfish'),'analysis','mean.wt.at.length.r'))
-
+    save(o,file= file.path(project.datadirectory('silverhake'),'analysis','male.mean.wt.at.length.r'))
+write.csv(o,pipe("xclip -i", "w"))  
+gc()
 
     plot(1,1,xlab='Year',xlim=c(min(o$yr,na.rm=T),max(o$yr,na.rm=T)),ylim=c(min(o$meanWt,na.rm=T),350),ylab='Mean Weight at Length (g)',type='n')
     
