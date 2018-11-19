@@ -72,6 +72,7 @@ groundfish.db = function(  DS="complete", p=NULL, taxa="all", datayrs=NULL  ) {
       fl = list.files( path=fn.root, pattern="*.rdata", full.names=T )
 				for ( fny in fl ) {
 				load (fny)
+        print(fny)
 				out = rbind( out, gscat )
 			}
 			return (out)
@@ -89,6 +90,8 @@ groundfish.db = function(  DS="complete", p=NULL, taxa="all", datayrs=NULL  ) {
       ) )
 
       names(gscat) =  tolower( names(gscat) )
+      dontwant = c("length_type", "length_units", "weight_type",  "weight_units")
+      gscat = gscat[,which(!names(gscat)%in%dontwant)]
       print(fny)
       save(gscat, file=fny, compress=T)
 			gc()  # garbage collection
